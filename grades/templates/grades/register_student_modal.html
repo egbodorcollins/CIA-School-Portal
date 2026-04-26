@@ -1,0 +1,124 @@
+{% load static %}
+<div id="student-registration-modal" class="modal" style="display: none;">
+    <div class="modal-content">
+        <span class="close" onclick="closeModal()">&times;</span>
+        <h2>Register New Student</h2>
+        <form method="post" action="{% url 'register_student' %}">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            {% for field in form %}
+                <div class="field-row">
+                    {{ field.label_tag }}
+                    {{ field }}
+                    {% if field.help_text %}
+                        <small class="help-text">{{ field.help_text }}</small>
+                    {% endif %}
+                    {% for error in field.errors %}
+                        <div class="field-error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+            <button type="submit" class="button button-primary">Create Student Account</button>
+        </form>
+    </div>
+</div>
+
+<style>
+.modal {
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgb(0,0,0);
+    background-color: rgba(0,0,0,0.4);
+}
+
+.modal-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+    max-width: 500px;
+    border-radius: 8px;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close:hover,
+.close:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.field-row {
+    margin-bottom: 15px;
+}
+
+.field-row label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+}
+
+.field-row input,
+.field-row select {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.help-text {
+    color: #666;
+    font-size: 0.9em;
+}
+
+.field-error {
+    color: #c81a26;
+    font-size: 0.9em;
+}
+
+.button {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.button-primary {
+    background-color: #c81a26;
+    color: white;
+}
+
+.button-primary:hover {
+    background-color: #a0141f;
+}
+</style>
+
+<script>
+function openModal() {
+    document.getElementById('student-registration-modal').style.display = 'block';
+}
+
+function closeModal() {
+    document.getElementById('student-registration-modal').style.display = 'none';
+}
+
+window.onclick = function(event) {
+    var modal = document.getElementById('student-registration-modal');
+    if (event.target == modal) {
+        modal.style.display = 'none';
+    }
+}
+</script>

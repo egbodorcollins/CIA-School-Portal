@@ -8,6 +8,7 @@ class Student(models.Model):
     student_id = models.CharField(max_length=20, unique=True, help_text="Unique student ID")
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
+    class_name = models.CharField(max_length=50, blank=True, null=True, help_text="Student's class (e.g., JSS1A, SS2B)")
     nationality = models.CharField(max_length=50, default='Nigeria')
     state_of_origin = models.CharField(max_length=50, blank=True, null=True)
     club_and_society = models.CharField(max_length=100, blank=True, null=True)

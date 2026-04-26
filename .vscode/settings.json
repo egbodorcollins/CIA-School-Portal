@@ -1,0 +1,12 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^cd \"c:\\\\Users\\\\cegbo\\\\Documents\\\\CIA\\\\CIA School Portal\" ; python manage\\.py makemigrations$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^cd \"c:\\\\Users\\\\cegbo\\\\Documents\\\\CIA\\\\CIA School Portal\" ; python manage\\.py migrate$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

@@ -4,13 +4,13 @@ from .models import Student, Subject, Grade, BehavioralGrade
 
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
-    list_display = ['student_id', 'first_name', 'last_name', 'nationality', 'state_of_origin', 'enrollment_date']
-    list_filter = ['enrollment_date', 'nationality', 'state_of_origin', 'sport_house']
-    search_fields = ['student_id', 'first_name', 'last_name', 'state_of_origin']
+    list_display = ['student_id', 'first_name', 'last_name', 'class_name', 'nationality', 'state_of_origin', 'enrollment_date']
+    list_filter = ['enrollment_date', 'nationality', 'state_of_origin', 'sport_house', 'class_name']
+    search_fields = ['student_id', 'first_name', 'last_name', 'state_of_origin', 'class_name']
     readonly_fields = ['enrollment_date']
     fieldsets = (
         ('Personal Information', {
-            'fields': ('student_id', 'first_name', 'last_name', 'nationality', 'state_of_origin')
+            'fields': ('student_id', 'first_name', 'last_name', 'class_name', 'nationality', 'state_of_origin')
         }),
         ('School Activities', {
             'fields': ('club_and_society', 'sport_house'),

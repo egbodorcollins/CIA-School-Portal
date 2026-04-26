@@ -5,9 +5,7 @@
         <h2>Welcome to CIA Portal</h2>
         <p>Corinasia International Academy student and teacher portal for grades, term assessments, and student information.</p>
         <div class="hero-actions">
-            <a class="button button-secondary" href="{% url 'login' %}">Student / Teacher Login</a>
-            <a class="button button-primary" href="{% url 'register_student' %}">Register Student</a>
-            <a class="button button-secondary" href="{% url 'register_teacher' %}">Register Teacher</a>
+            <a class="button button-primary" href="{% url 'login' %}">Login</a>
         </div>
     </div>
     <div class="hero-card">
@@ -24,11 +22,29 @@
     <div class="feature-card">
         <h3>Why CIA Portal?</h3>
         <ul>
-            <li>Easy student registration using a unique student ID</li>
+            <li>Easy student registration through teacher accounts</li>
             <li>Teacher access to enter grades and behavioral assessments</li>
             <li>Clean report cards for academic and conduct evaluations</li>
             <li>Branded experience using CIA red and orange theme</li>
         </ul>
+    </div>
+</div>
+<div class="contact-panel" id="contact">
+    <div class="contact-card">
+        <h3>Contact Us</h3>
+        <p>For inquiries, please reach out to us:</p>
+        <ul>
+            <li><strong>Email:</strong> info@corinasiaacademy.edu.ng</li>
+            <li><strong>Phone:</strong> +234 XXX XXX XXXX</li>
+            <li><strong>Address:</strong> [School Address]</li>
+        </ul>
+    </div>
+</div>
+<div class="social-media-panel">
+    <div class="social-card">
+        <h3>Latest Updates</h3>
+        <p>Follow us on social media for the latest news and announcements.</p>
+        <div class="fb-page" data-href="https://www.facebook.com/CorinasiaInternationalAcademy" data-tabs="timeline" data-width="500" data-height="400" data-small-header="false" data-adapt-container-width="true" data-hide-cover="false" data-show-facepile="true"><blockquote cite="https://www.facebook.com/CorinasiaInternationalAcademy" class="fb-xfbml-parse-ignore"><a href="https://www.facebook.com/CorinasiaInternationalAcademy">Corinasia International Academy</a></blockquote></div>
     </div>
 </div>
 {% endblock %}

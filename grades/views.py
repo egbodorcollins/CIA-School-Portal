@@ -1,52 +1,29 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import logout
-from django.contrib.auth.decorators import login_required
+from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from .models import Student, Grade, BehavioralGrade
-from .forms import StudentSignUpForm, TeacherSignUpForm
+from .forms import StudentSignUpForm
 
 
 def home(request):
     return render(request, 'grades/home.html')
 
 
+@login_required
+@user_passes_test(lambda u: u.is_staff)
 def register_student(request):
-    if request.user.is_authenticated:
-        return redirect('home')
-
     if request.method == 'POST':
         form = StudentSignUpForm(request.POST)
         if form.is_valid():
             form.save()
-            messages.success(request, 'Student account created successfully. Please sign in.')
-            return redirect('login')
+            messages.success(request, 'Student account created successfully.')
+            return redirect('teacher_dashboard')
     else:
         form = StudentSignUpForm()
 
-    return render(request, 'grades/register.html', {
+    return render(request, 'grades/register_student_modal.html', {
         'form': form,
-        'title': 'Student Registration',
-        'description': 'Create your CIA student portal account using your student ID as username.',
-    })
-
-
-def register_teacher(request):
-    if request.user.is_authenticated:
-        return redirect('home')
-
-    if request.method == 'POST':
-        form = TeacherSignUpForm(request.POST)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Teacher account created successfully. Please sign in.')
-            return redirect('login')
-    else:
-        form = TeacherSignUpForm()
-
-    return render(request, 'grades/register.html', {
-        'form': form,
-        'title': 'Teacher Registration',
-        'description': 'Create your CIA teacher access account for entering grades and term assessments.',
     })
 
 
@@ -64,7 +41,8 @@ def teacher_dashboard(request):
         return redirect('student_dashboard')
 
     students = Student.objects.all().order_by('last_name')
-    return render(request, 'grades/teacher_dashboard.html', {'students': students})
+    form = StudentSignUpForm()
+    return render(request, 'grades/teacher_dashboard.html', {'students': students, 'form': form})
 
 
 @login_required
