@@ -35,11 +35,10 @@ body {
 }
 
 .brand-logo {
-  width: 72px;
+  width: 200px;
   height: auto;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.18);
-  padding: 10px;
+  padding: 1px;
 }
 
 .brand h1 {
@@ -80,6 +79,82 @@ body {
   border-radius: 24px;
   box-shadow: 0 20px 50px rgba(40, 20, 20, 0.08);
   padding: 32px;
+}
+
+.feature-panel {
+  margin-top: 28px;
+}
+
+.feature-card {
+  background: rgba(248, 157, 87, 0.08);
+  border: 1px solid rgba(248, 157, 87, 0.18);
+  border-radius: 24px;
+  padding: 28px;
+}
+
+.feature-card h3 {
+  margin-top: 0;
+  color: var(--brand-red);
+}
+
+.feature-card ul {
+  list-style: disc inside;
+  padding-left: 0;
+  margin: 16px 0 0;
+}
+
+.feature-card li {
+  margin-bottom: 10px;
+}
+
+.behavioral-report {
+  margin-top: 32px;
+}
+
+.report-card {
+  background: #fff5eb;
+  border-radius: 20px;
+  border: 1px solid rgba(200, 26, 38, 0.12);
+  padding: 22px;
+  margin-bottom: 24px;
+}
+
+.report-card table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 12px;
+}
+
+.report-card th,
+.report-card td {
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(223, 167, 130, 0.4);
+}
+
+.report-card th {
+  width: 40%;
+  color: var(--brand-red);
+  text-align: left;
+}
+
+.field-row {
+  display: grid;
+  gap: 8px;
+}
+
+.field-error {
+  color: #b72f2f;
+  font-size: 0.9rem;
+}
+
+.login-card input,
+.login-card select,
+.login-card textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #e8e2dc;
+  border-radius: 14px;
+  font-size: 1rem;
 }
 
 .hero-copy h2,

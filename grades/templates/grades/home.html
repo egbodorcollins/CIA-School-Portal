@@ -6,15 +6,28 @@
         <p>Corinasia International Academy student and teacher portal for grades, term assessments, and student information.</p>
         <div class="hero-actions">
             <a class="button button-secondary" href="{% url 'login' %}">Student / Teacher Login</a>
-            <a class="button button-primary" href="{% url 'login' %}">Get Started</a>
+            <a class="button button-primary" href="{% url 'register_student' %}">Register Student</a>
+            <a class="button button-secondary" href="{% url 'register_teacher' %}">Register Teacher</a>
         </div>
     </div>
     <div class="hero-card">
         <h3>Portal Access</h3>
         <ul>
-            <li>Student dashboard for personal grades and information</li>
-            <li>Teacher login for entering scores and assessments</li>
-            <li>Term-based academic and behavioral tracking</li>
+            <li>Student dashboard for personal grades, conduct report, and school information</li>
+            <li>Teacher dashboard with academic and behavioral entry tools</li>
+            <li>Term-based grade tracking aligned with CIA's five-point evaluation system</li>
+            <li>Fast login redirect so authenticated users go directly to home</li>
+        </ul>
+    </div>
+</div>
+<div class="feature-panel">
+    <div class="feature-card">
+        <h3>Why CIA Portal?</h3>
+        <ul>
+            <li>Easy student registration using a unique student ID</li>
+            <li>Teacher access to enter grades and behavioral assessments</li>
+            <li>Clean report cards for academic and conduct evaluations</li>
+            <li>Branded experience using CIA red and orange theme</li>
         </ul>
     </div>
 </div>

@@ -34,6 +34,35 @@
                     <p class="empty-state">No academic grades are available yet.</p>
                 {% endif %}
             </div>
+            <div class="behavioral-report">
+                <h3>Behavioral Report Card</h3>
+                {% if behavioral_grades %}
+                    {% for report in behavioral_grades %}
+                        <div class="report-card">
+                            <h4>{{ report.term|capfirst }} Assessment</h4>
+                            <table>
+                                <tbody>
+                                    <tr><th>Punctuality</th><td>{{ report.punctuality }}</td></tr>
+                                    <tr><th>Relationship with Staff</th><td>{{ report.relationship_with_staff }}</td></tr>
+                                    <tr><th>Politeness</th><td>{{ report.politeness }}</td></tr>
+                                    <tr><th>Neatness</th><td>{{ report.neatness }}</td></tr>
+                                    <tr><th>Co-operation</th><td>{{ report.co_operation }}</td></tr>
+                                    <tr><th>Obedience</th><td>{{ report.obedience }}</td></tr>
+                                    <tr><th>Attentiveness</th><td>{{ report.attentiveness }}</td></tr>
+                                    <tr><th>Adjustment in School</th><td>{{ report.adjustment_in_school }}</td></tr>
+                                    <tr><th>Relationship with Peers</th><td>{{ report.relationship_with_peers }}</td></tr>
+                                    <tr><th>Times Present</th><td>{{ report.times_present }}</td></tr>
+                                </tbody>
+                            </table>
+                            {% if report.remarks %}
+                                <p><strong>Remarks:</strong> {{ report.remarks }}</p>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="empty-state">No behavioral assessments have been recorded yet.</p>
+                {% endif %}
+            </div>
         {% else %}
             <p class="empty-state">We were not able to find a student profile for this account. Please contact the school administrator.</p>
         {% endif %}

@@ -1,0 +1,27 @@
+{% extends 'grades/base.html' %}
+{% block content %}
+<div class="login-panel">
+    <div class="login-card">
+        <h2>{{ title }}</h2>
+        <p>{{ description }}</p>
+        <form method="post">
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            {% for field in form %}
+                <div class="field-row">
+                    {{ field.label_tag }}
+                    {{ field }}
+                    {% if field.help_text %}
+                        <small class="help-text">{{ field.help_text }}</small>
+                    {% endif %}
+                    {% for error in field.errors %}
+                        <div class="field-error">{{ error }}</div>
+                    {% endfor %}
+                </div>
+            {% endfor %}
+            <button type="submit" class="button button-primary">Create Account</button>
+        </form>
+        <p class="helper-text">Already have an account? <a href="{% url 'login' %}">Sign in here</a>.</p>
+    </div>
+</div>
+{% endblock %}

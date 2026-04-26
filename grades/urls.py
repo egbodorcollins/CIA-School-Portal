@@ -4,8 +4,13 @@ from . import views
 
 urlpatterns = [
     path('', views.home, name='home'),
-    path('login/', auth_views.LoginView.as_view(template_name='grades/login.html'), name='login'),
-    path('logout/', auth_views.LogoutView.as_view(next_page='home'), name='logout'),
+    path('login/', auth_views.LoginView.as_view(
+        template_name='grades/login.html',
+        redirect_authenticated_user=True
+    ), name='login'),
+    path('logout/', views.logout_view, name='logout'),
+    path('register/student/', views.register_student, name='register_student'),
+    path('register/teacher/', views.register_teacher, name='register_teacher'),
     path('teacher/dashboard/', views.teacher_dashboard, name='teacher_dashboard'),
     path('student/dashboard/', views.student_dashboard, name='student_dashboard'),
 ]
