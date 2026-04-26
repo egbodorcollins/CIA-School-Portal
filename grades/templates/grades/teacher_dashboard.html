@@ -1,0 +1,26 @@
+{% extends 'grades/base.html' %}
+{% block content %}
+<div class="dashboard-shell">
+    <div class="dashboard-card teacher-card">
+        <h2>Teacher Dashboard</h2>
+        <p>Welcome, {{ user.get_full_name|default:user.username }}. Use the form below to navigate to grade entry and student records.</p>
+        <div class="teacher-actions">
+            <a class="button button-primary" href="/admin/grades/grade/">Enter Academic Scores</a>
+            <a class="button button-secondary" href="/admin/grades/behavioralgrade/">Enter Behavioral Assessments</a>
+            <a class="button button-secondary" href="/admin/grades/student/">Manage Students</a>
+        </div>
+        <div class="student-list">
+            <h3>Student Roster</h3>
+            {% if students %}
+                <ul>
+                    {% for student in students %}
+                        <li>{{ student.student_id }} — {{ student.first_name }} {{ student.last_name }} ({{ student.state_of_origin|default:'N/A' }})</li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="empty-state">No students are registered yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

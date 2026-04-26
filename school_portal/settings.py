@@ -66,7 +66,13 @@ TEMPLATES = [
         },
     },
 ]
+LOGIN_URL = 'login'
+LOGIN_REDIRECT_URL = 'home'
+LOGOUT_REDIRECT_URL = 'home'
 
+STATICFILES_DIRS = [
+    BASE_DIR / 'graphic',
+]
 WSGI_APPLICATION = 'school_portal.wsgi.application'
 
 

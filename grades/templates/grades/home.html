@@ -1,0 +1,21 @@
+{% extends 'grades/base.html' %}
+{% block content %}
+<div class="hero-panel">
+    <div class="hero-copy">
+        <h2>Welcome to CIA Portal</h2>
+        <p>Corinasia International Academy student and teacher portal for grades, term assessments, and student information.</p>
+        <div class="hero-actions">
+            <a class="button button-secondary" href="{% url 'login' %}">Student / Teacher Login</a>
+            <a class="button button-primary" href="{% url 'login' %}">Get Started</a>
+        </div>
+    </div>
+    <div class="hero-card">
+        <h3>Portal Access</h3>
+        <ul>
+            <li>Student dashboard for personal grades and information</li>
+            <li>Teacher login for entering scores and assessments</li>
+            <li>Term-based academic and behavioral tracking</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,47 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Corinasia International Academy</title>
+    <link rel="stylesheet" href="{% static 'grades/css/style.css' %}">
+</head>
+<body>
+    <header class="site-header">
+        <div class="brand">
+            <img src="{% static 'logo2.png' %}" alt="CIA Logo" class="brand-logo">
+            <div>
+                <h1>Corinasia International Academy</h1>
+                <p>CIA — Uniqueness in All</p>
+            </div>
+        </div>
+        <nav class="top-nav">
+            <a href="{% url 'home' %}">Home</a>
+            {% if user.is_authenticated %}
+                {% if user.is_staff %}
+                    <a href="{% url 'teacher_dashboard' %}">Teacher Dashboard</a>
+                {% else %}
+                    <a href="{% url 'student_dashboard' %}">Student Dashboard</a>
+                {% endif %}
+                <a href="{% url 'logout' %}">Logout</a>
+            {% else %}
+                <a href="{% url 'login' %}">Login</a>
+            {% endif %}
+        </nav>
+    </header>
+    <main class="page-shell">
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <div class="message {{ message.tags }}">{{ message }}</div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        {% block content %}{% endblock %}
+    </main>
+    <footer class="site-footer">
+        <p>© {% now 'Y' %} Corinasia International Academy</p>
+    </footer>
+</body>
+</html>

@@ -1,0 +1,42 @@
+{% extends 'grades/base.html' %}
+{% block content %}
+<div class="dashboard-shell">
+    <div class="dashboard-card">
+        <h2>Student Dashboard</h2>
+        {% if student %}
+            <div class="profile-block">
+                <p><strong>Name:</strong> {{ student.first_name }} {{ student.last_name }}</p>
+                <p><strong>Student ID:</strong> {{ student.student_id }}</p>
+                <p><strong>Nationality:</strong> {{ student.nationality }}</p>
+                <p><strong>State of Origin:</strong> {{ student.state_of_origin|default:'Not provided' }}</p>
+                <p><strong>Sport House:</strong> {{ student.sport_house|default:'Not provided' }}</p>
+                <p><strong>Club & Society:</strong> {{ student.club_and_society|default:'Not provided' }}</p>
+            </div>
+            <div class="grades-table">
+                <h3>Academic Grades</h3>
+                {% if grades %}
+                    <table>
+                        <thead>
+                            <tr><th>Subject</th><th>Term</th><th>Marks</th><th>Letter Grade</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for grade in grades %}
+                                <tr>
+                                    <td>{{ grade.subject.name }}</td>
+                                    <td>{{ grade.term }}</td>
+                                    <td>{{ grade.marks }}</td>
+                                    <td>{{ grade.letter_grade }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% else %}
+                    <p class="empty-state">No academic grades are available yet.</p>
+                {% endif %}
+            </div>
+        {% else %}
+            <p class="empty-state">We were not able to find a student profile for this account. Please contact the school administrator.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

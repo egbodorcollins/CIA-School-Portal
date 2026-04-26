@@ -1,0 +1,18 @@
+{% extends 'grades/base.html' %}
+{% block content %}
+<div class="login-panel">
+    <div class="login-card">
+        <h2>Portal Login</h2>
+        <p>Sign in as a student or teacher to access your CIA portal.</p>
+        <form method="post" action="{% url 'login' %}">
+            {% csrf_token %}
+            <label for="id_username">Username</label>
+            {{ form.username }}
+            <label for="id_password">Password</label>
+            {{ form.password }}
+            <button type="submit" class="button button-primary">Sign In</button>
+        </form>
+        <p class="helper-text">Use your student ID as the username for the student portal. Teachers should use staff credentials.</p>
+    </div>
+</div>
+{% endblock %}
