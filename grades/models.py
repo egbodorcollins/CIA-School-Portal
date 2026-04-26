@@ -56,24 +56,30 @@ class Grade(models.Model):
         help_text="Marks out of 100"
     )
     letter_grade = models.CharField(max_length=2, choices=GRADE_CHOICES)
-    semester = models.CharField(
+    TERM_CHOICES = [
+        ('first_term', 'First Term'),
+        ('second_term', 'Second Term'),
+        ('third_term', 'Third Term'),
+    ]
+    term = models.CharField(
         max_length=20,
-        default='Spring 2024',
-        help_text="E.g., Spring 2024, Fall 2024"
+        choices=TERM_CHOICES,
+        default='first_term',
+        help_text="Academic term for the grade"
     )
     date_recorded = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
     remarks = models.TextField(blank=True, null=True)
     
     class Meta:
-        ordering = ['-semester', 'student', 'subject']
+        ordering = ['-term', 'student', 'subject']
         verbose_name = "Grade"
         verbose_name_plural = "Grades"
-        # Ensure one grade per student per subject per semester
-        unique_together = ['student', 'subject', 'semester']
+        # Ensure one grade per student per subject per term
+        unique_together = ['student', 'subject', 'term']
     
     def __str__(self):
-        return f"{self.student} - {self.subject} ({self.semester}): {self.letter_grade}"
+        return f"{self.student} - {self.subject} ({self.term}): {self.letter_grade}"
     
     def save(self, *args, **kwargs):
         """Automatically assign letter grade based on marks"""

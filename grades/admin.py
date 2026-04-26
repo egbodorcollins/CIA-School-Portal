@@ -29,13 +29,13 @@ class SubjectAdmin(admin.ModelAdmin):
 
 @admin.register(Grade)
 class GradeAdmin(admin.ModelAdmin):
-    list_display = ['student', 'subject', 'marks', 'letter_grade', 'semester']
-    list_filter = ['semester', 'letter_grade', 'subject']
+    list_display = ['student', 'subject', 'marks', 'letter_grade', 'term']
+    list_filter = ['term', 'letter_grade', 'subject']
     search_fields = ['student__first_name', 'student__last_name', 'student__student_id', 'subject__code']
     readonly_fields = ['letter_grade', 'date_recorded', 'last_updated']
     fieldsets = (
         ('Student & Subject', {
-            'fields': ('student', 'subject', 'semester')
+            'fields': ('student', 'subject', 'term')
         }),
         ('Grades', {
             'fields': ('marks', 'letter_grade')
@@ -48,4 +48,4 @@ class GradeAdmin(admin.ModelAdmin):
     
     def get_list_display(self, request):
         """Customize list display based on context"""
-        return ['student', 'subject', 'marks', 'letter_grade', 'semester', 'last_updated']
+        return ['student', 'subject', 'marks', 'letter_grade', 'term', 'last_updated']

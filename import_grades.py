@@ -15,7 +15,7 @@ def import_grades_from_excel(file_path):
     - student_id: Student ID (must exist in database)
     - subject_code: Subject code (must exist in database)
     - marks: Marks (0-100)
-    - semester: Semester (e.g., "Spring 2024")
+    - term: Term ('first_term', 'second_term', or 'third_term')
     """
     try:
         df = pd.read_excel(file_path)
@@ -31,7 +31,7 @@ def import_grades_from_excel(file_path):
                 grade, created = Grade.objects.update_or_create(
                     student=student,
                     subject=subject,
-                    semester=row.get('semester', 'Spring 2024'),
+                    term=row.get('term', 'first_term'),
                     defaults={
                         'marks': float(row['marks']),
                         'remarks': row.get('remarks', '')
