@@ -8,8 +8,10 @@ class Student(models.Model):
     student_id = models.CharField(max_length=20, unique=True, help_text="Unique student ID")
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
-    email = models.EmailField(unique=True)
-    phone = models.CharField(max_length=20, blank=True, null=True)
+    nationality = models.CharField(max_length=50, default='Nigeria')
+    state_of_origin = models.CharField(max_length=50, blank=True, null=True)
+    club_and_society = models.CharField(max_length=100, blank=True, null=True)
+    sport_house = models.CharField(max_length=50, blank=True, null=True)
     date_of_birth = models.DateField(blank=True, null=True)
     enrollment_date = models.DateField(default=datetime.today)
     
@@ -96,3 +98,51 @@ class Grade(models.Model):
         else:
             self.letter_grade = 'F'
         super().save(*args, **kwargs)
+
+
+class BehavioralGrade(models.Model):
+    """Model for storing student behavioral/character grades"""
+    BEHAVIORAL_GRADES = [
+        ('A', 'A - Excellent'),
+        ('B', 'B - Very Good'),
+        ('C', 'C - Good'),
+        ('D', 'D - Satisfactory'),
+        ('E', 'E - Needs Improvement'),
+        ('F', 'F - Poor'),
+    ]
+    
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='behavioral_grades')
+    term = models.CharField(
+        max_length=20,
+        choices=Grade.TERM_CHOICES,
+        default='first_term',
+        help_text="Academic term for the behavioral assessment"
+    )
+    
+    # Behavioral traits graded A-F
+    punctuality = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
+    relationship_with_staff = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
+    politeness = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
+    neatness = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
+    co_operation = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
+    obedience = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
+    attentiveness = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
+    adjustment_in_school = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
+    relationship_with_peers = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
+    
+    # Number of times present (numeric field)
+    times_present = models.PositiveIntegerField(default=0, help_text="Number of times present during the term")
+    
+    date_recorded = models.DateTimeField(auto_now_add=True)
+    last_updated = models.DateTimeField(auto_now=True)
+    remarks = models.TextField(blank=True, null=True)
+    
+    class Meta:
+        ordering = ['-term', 'student']
+        verbose_name = "Behavioral Grade"
+        verbose_name_plural = "Behavioral Grades"
+        # Ensure one behavioral assessment per student per term
+        unique_together = ['student', 'term']
+    
+    def __str__(self):
+        return f"{self.student} - Behavioral Assessment ({self.term})"

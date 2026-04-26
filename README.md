@@ -55,8 +55,10 @@ Access the portal at: `http://127.0.0.1:8000/admin`
 ### Student
 - `student_id`: Unique identifier (e.g., "STU001")
 - `first_name`, `last_name`: Student name
-- `email`: Student email (unique)
-- `phone`: Contact number
+- `nationality`: Student nationality (default: Nigeria)
+- `state_of_origin`: State of origin
+- `club_and_society`: Club and society membership
+- `sport_house`: Sport house assignment
 - `date_of_birth`: Birth date
 - `enrollment_date`: Date of enrollment
 
@@ -76,13 +78,30 @@ Access the portal at: `http://127.0.0.1:8000/admin`
 - `date_recorded`: Timestamp of record creation
 - `last_updated`: Timestamp of last update
 
+### BehavioralGrade
+- `student`: Foreign key to Student
+- `term`: Term identifier ('first_term', 'second_term', 'third_term')
+- `punctuality`: Letter grade (A-F) for punctuality
+- `relationship_with_staff`: Letter grade (A-F) for relationship with staff
+- `politeness`: Letter grade (A-F) for politeness
+- `neatness`: Letter grade (A-F) for neatness
+- `co_operation`: Letter grade (A-F) for co-operation
+- `obedience`: Letter grade (A-F) for obedience
+- `attentiveness`: Letter grade (A-F) for attentiveness
+- `adjustment_in_school`: Letter grade (A-F) for adjustment in school
+- `relationship_with_peers`: Letter grade (A-F) for relationship with peers
+- `times_present`: Number of times present during the term
+- `remarks`: Additional notes
+- `date_recorded`: Timestamp of record creation
+- `last_updated`: Timestamp of last update
+
 ## Grading Scale
-- A: 90-100
-- B: 80-89
-- C: 70-79
-- D: 60-69
-- E: 50-59
-- F: Below 50
+- A: 90-100 (Academic) / A - Excellent (Behavioral)
+- B: 80-89 (Academic) / B - Very Good (Behavioral)
+- C: 70-79 (Academic) / C - Good (Behavioral)
+- D: 60-69 (Academic) / D - Satisfactory (Behavioral)
+- E: 50-59 (Academic) / E - Needs Improvement (Behavioral)
+- F: Below 50 (Academic) / F - Poor (Behavioral)
 
 ## Importing Grades from Excel
 
@@ -104,8 +123,9 @@ python manage.py shell
 
 ### Adding a Student
 1. Go to Admin Panel → Students → Add Student
-2. Fill in student ID, name, email, and enrollment date
-3. Click Save
+2. Fill in student ID, first name, last name, nationality (defaults to Nigeria), state of origin, and enrollment date
+3. Optionally add club & society and sport house information
+4. Click Save
 
 ### Adding a Subject
 1. Go to Admin Panel → Subjects → Add Subject
@@ -118,6 +138,14 @@ python manage.py shell
 3. Enter marks (0-100) - letter grade auto-calculates
 4. Select term
 5. Click Save
+
+### Recording Behavioral Grades
+1. Go to Admin Panel → Behavioral grades → Add Behavioral grade
+2. Select Student and Term
+3. Grade each behavioral trait (Punctuality, Relationship with Staff, Politeness, etc.) with A-F
+4. Enter number of times present
+5. Optionally add remarks
+6. Click Save
 
 ## Future Enhancements
 
