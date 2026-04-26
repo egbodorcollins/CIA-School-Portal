@@ -41,12 +41,12 @@ class Subject(models.Model):
 class Grade(models.Model):
     """Model for storing student grades for each subject"""
     GRADE_CHOICES = [
-        ('A', 'A+ (90-100)'),
-        ('B', 'A (80-89)'),
-        ('C', 'B+ (70-79)'),
-        ('D', 'B (60-69)'),
-        ('E', 'C (50-59)'),
-        ('F', 'F (Below 40)'),
+        ('A', 'A (90-100)'),
+        ('B', 'B (80-89)'),
+        ('C', 'C (70-79)'),
+        ('D', 'D (60-69)'),
+        ('E', 'E (50-59)'),
+        ('F', 'F (Below 50)'),
     ]
     
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='grades')
@@ -78,17 +78,15 @@ class Grade(models.Model):
     def save(self, *args, **kwargs):
         """Automatically assign letter grade based on marks"""
         if self.marks >= 90:
-            self.letter_grade = 'A+'
-        elif self.marks >= 80:
             self.letter_grade = 'A'
-        elif self.marks >= 70:
-            self.letter_grade = 'B+'
-        elif self.marks >= 60:
+        elif self.marks >= 80:
             self.letter_grade = 'B'
-        elif self.marks >= 50:
+        elif self.marks >= 70:
             self.letter_grade = 'C'
-        elif self.marks >= 40:
+        elif self.marks >= 60:
             self.letter_grade = 'D'
+        elif self.marks >= 50:
+            self.letter_grade = 'E'
         else:
             self.letter_grade = 'F'
         super().save(*args, **kwargs)
