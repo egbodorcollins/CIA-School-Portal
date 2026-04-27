@@ -4,11 +4,13 @@
     <div class="dashboard-card teacher-card">
         <h2>Teacher Dashboard</h2>
         <p>Welcome, {{ user.get_full_name|default:user.username }}. Use the form below to navigate to grade entry and student records.</p>
+        <p class="current-term-label">Active Term: <strong>{{ current_term|capfirst|replace:'_',' ' }}</strong></p>
         <div class="teacher-actions">
             <button class="button button-primary" onclick="openModal()">Register New Student</button>
-            <a class="button button-secondary" href="/admin/grades/grade/">Enter Academic Scores</a>
-            <a class="button button-secondary" href="/admin/grades/behavioralgrade/">Enter Behavioral Assessments</a>
-            <a class="button button-secondary" href="/admin/grades/student/">Manage Students</a>
+            <a class="button button-secondary" href="{% url 'enter_academic_scores' %}">Enter Academic Scores</a>
+            <a class="button button-secondary" href="{% url 'enter_behavioral_assessments' %}">Enter Behavioral Assessments</a>
+            <a class="button button-secondary" href="{% url 'manage_students' %}">Manage Students</a>
+            <a class="button button-secondary" href="{% url 'set_current_term' %}">Set Current Term</a>
         </div>
         <div class="student-list">
             <h3>Student Roster</h3>

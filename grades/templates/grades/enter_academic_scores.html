@@ -1,0 +1,64 @@
+{% extends 'grades/base.html' %}
+{% block content %}
+<div class="page-shell">
+    <div class="dashboard-card">
+        <h2>Enter Academic Scores</h2>
+        <p>Use this page to record or update grades for {{ current_term|capfirst|replace:'_',' ' }}.</p>
+        <div class="teacher-form-card">
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {{ form.non_field_errors }}
+                <div class="field-row">
+                    {{ form.student.label_tag }}
+                    {{ form.student }}
+                    {% for error in form.student.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.subject.label_tag }}
+                    {{ form.subject }}
+                    {% for error in form.subject.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.marks.label_tag }}
+                    {{ form.marks }}
+                    {% for error in form.marks.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.term.label_tag }}
+                    {{ form.term }}
+                    {% for error in form.term.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.remarks.label_tag }}
+                    {{ form.remarks }}
+                    {% for error in form.remarks.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <button type="submit" class="button button-primary">Save Score</button>
+            </form>
+        </div>
+        <div class="grades-table" style="margin-top: 28px;">
+            <h3>Grades for {{ current_term|capfirst|replace:'_',' ' }}</h3>
+            {% if grades %}
+                <table>
+                    <thead>
+                        <tr><th>Student</th><th>Subject</th><th>Marks</th><th>Letter</th><th>Remarks</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for grade in grades %}
+                            <tr>
+                                <td>{{ grade.student.first_name }} {{ grade.student.last_name }}</td>
+                                <td>{{ grade.subject.name }}</td>
+                                <td>{{ grade.marks }}</td>
+                                <td>{{ grade.letter_grade }}</td>
+                                <td>{{ grade.remarks|default:'—' }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="empty-state">No academic scores have been recorded for the active term yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

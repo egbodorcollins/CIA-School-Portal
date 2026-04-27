@@ -11,11 +11,10 @@ from django.utils import timezone
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from .models import Student, Grade, BehavioralGrade
-from .forms import StudentSignUpForm
+from .models import Student, Grade, BehavioralGrade, TermSetting
+from .forms import StudentSignUpForm, GradeEntryForm, BehavioralGradeEntryForm, TermSettingForm
 
 
 class RateLimitedLoginView(LoginView):
@@ -63,7 +62,121 @@ def teacher_dashboard(request):
 
     students = Student.objects.all().order_by('last_name')
     form = StudentSignUpForm()
-    return render(request, 'grades/teacher_dashboard.html', {'students': students, 'form': form})
+    current_term = TermSetting.get_current_term()
+    return render(request, 'grades/teacher_dashboard.html', {
+        'students': students,
+        'form': form,
+        'current_term': current_term,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def set_current_term(request):
+    term_setting, _ = TermSetting.objects.get_or_create(pk=1)
+    if request.method == 'POST':
+        form = TermSettingForm(request.POST, instance=term_setting)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Current academic term has been updated.')
+            return redirect('teacher_dashboard')
+    else:
+        form = TermSettingForm(instance=term_setting)
+
+    return render(request, 'grades/set_current_term.html', {
+        'form': form,
+        'term_setting': term_setting,
+        'current_term': term_setting.current_term,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def enter_academic_scores(request):
+    current_term = TermSetting.get_current_term()
+    if request.method == 'POST':
+        form = GradeEntryForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+            Grade.objects.update_or_create(
+                student=data['student'],
+                subject=data['subject'],
+                term=data['term'],
+                defaults={
+                    'marks': data['marks'],
+                    'remarks': data['remarks'],
+                }
+            )
+            messages.success(request, 'Academic score saved successfully.')
+            return redirect('enter_academic_scores')
+    else:
+        form = GradeEntryForm(initial={'term': current_term})
+
+    grades = Grade.objects.filter(term=current_term).select_related('student', 'subject').order_by('student__last_name', 'subject__name')
+    return render(request, 'grades/enter_academic_scores.html', {
+        'form': form,
+        'grades': grades,
+        'current_term': current_term,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def enter_behavioral_assessments(request):
+    current_term = TermSetting.get_current_term()
+    if request.method == 'POST':
+        form = BehavioralGradeEntryForm(request.POST)
+        if form.is_valid():
+            data = form.cleaned_data
+            BehavioralGrade.objects.update_or_create(
+                student=data['student'],
+                term=data['term'],
+                defaults={
+                    'punctuality': data['punctuality'],
+                    'relationship_with_staff': data['relationship_with_staff'],
+                    'politeness': data['politeness'],
+                    'neatness': data['neatness'],
+                    'co_operation': data['co_operation'],
+                    'obedience': data['obedience'],
+                    'attentiveness': data['attentiveness'],
+                    'adjustment_in_school': data['adjustment_in_school'],
+                    'relationship_with_peers': data['relationship_with_peers'],
+                    'times_present': data['times_present'],
+                    'remarks': data['remarks'],
+                }
+            )
+            messages.success(request, 'Behavioral assessment saved successfully.')
+            return redirect('enter_behavioral_assessments')
+    else:
+        form = BehavioralGradeEntryForm(initial={'term': current_term})
+
+    reports = BehavioralGrade.objects.filter(term=current_term).select_related('student').order_by('student__last_name')
+    return render(request, 'grades/enter_behavioral_assessments.html', {
+        'form': form,
+        'reports': reports,
+        'current_term': current_term,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def manage_students(request):
+    students = Student.objects.all().order_by('last_name')
+    return render(request, 'grades/manage_students.html', {
+        'students': students,
+    })
+
+
+@login_required
+@user_passes_test(lambda u: u.is_staff)
+def delete_student(request, student_id):
+    student = Student.objects.filter(student_id=student_id).first()
+    if student:
+        student.delete()
+        messages.success(request, 'Student has been removed from the portal.')
+    else:
+        messages.error(request, 'Student not found.')
+    return redirect('manage_students')
 
 
 @login_required

@@ -1,0 +1,28 @@
+{% extends 'grades/base.html' %}
+{% block content %}
+<div class="page-shell">
+    <div class="dashboard-card">
+        <h2>Set Current Term</h2>
+        <p>Select the active academy term used by teachers and students across the portal.</p>
+        <div class="teacher-form-card">
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {{ form.non_field_errors }}
+                <div class="field-row">
+                    {{ form.current_term.label_tag }}
+                    {{ form.current_term }}
+                    {% for error in form.current_term.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <button type="submit" class="button button-primary">Save Current Term</button>
+            </form>
+        </div>
+        {% if term_setting %}
+            <div class="status-card" style="margin-top: 24px;">
+                <h3>Current Selection</h3>
+                <p>Active term is currently set to <strong>{{ term_setting.current_term|capfirst|replace:'_',' ' }}</strong>.</p>
+                <p>Last updated on {{ term_setting.updated_at|date:'M j, Y g:i a' }}.</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

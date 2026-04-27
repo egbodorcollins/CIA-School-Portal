@@ -2,6 +2,12 @@ from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from datetime import datetime
 
+TERM_CHOICES = [
+    ('first_term', 'First Term'),
+    ('second_term', 'Second Term'),
+    ('third_term', 'Third Term'),
+]
+
 
 class Student(models.Model):
     """Model for storing student information"""
@@ -43,6 +49,32 @@ class Subject(models.Model):
     
     def __str__(self):
         return f"{self.code} - {self.name}"
+
+
+class TermSetting(models.Model):
+    current_term = models.CharField(
+        max_length=20,
+        choices=TERM_CHOICES,
+        default='first_term',
+        help_text='Set the currently active academic term for the portal'
+    )
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Term Setting'
+        verbose_name_plural = 'Term Settings'
+
+    def save(self, *args, **kwargs):
+        TermSetting.objects.exclude(pk=self.pk).delete()
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get_current_term(cls):
+        term_setting = cls.objects.first()
+        return term_setting.current_term if term_setting else 'first_term'
+
+    def __str__(self):
+        return f'Current Term: {self.get_current_term_display()}'
 
 
 class Grade(models.Model):
@@ -124,7 +156,7 @@ class BehavioralGrade(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='behavioral_grades')
     term = models.CharField(
         max_length=20,
-        choices=Grade.TERM_CHOICES,
+        choices=TERM_CHOICES,
         default='first_term',
         help_text="Academic term for the behavioral assessment"
     )

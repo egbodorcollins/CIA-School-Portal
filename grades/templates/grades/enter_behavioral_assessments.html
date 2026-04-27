@@ -1,0 +1,53 @@
+{% extends 'grades/base.html' %}
+{% block content %}
+<div class="page-shell">
+    <div class="dashboard-card">
+        <h2>Enter Behavioral Assessments</h2>
+        <p>Record student behavioral scores and comments for the current term.</p>
+        <div class="teacher-form-card">
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {{ form.non_field_errors }}
+                <div class="field-row">
+                    {{ form.student.label_tag }}
+                    {{ form.student }}
+                    {% for error in form.student.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.behavioral_score.label_tag }}
+                    {{ form.behavioral_score }}
+                    {% for error in form.behavioral_score.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.comments.label_tag }}
+                    {{ form.comments }}
+                    {% for error in form.comments.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <button type="submit" class="button button-primary">Save Assessment</button>
+            </form>
+        </div>
+        <div class="grades-table" style="margin-top: 28px;">
+            <h3>Behavioral Records</h3>
+            {% if reports %}
+                <table>
+                    <thead>
+                        <tr><th>Student</th><th>Score</th><th>Comments</th><th>Recorded</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for record in reports %}
+                            <tr>
+                                <td>{{ record.student.first_name }} {{ record.student.last_name }}</td>
+                                <td>{{ record.times_present }}</td>
+                                <td>{{ record.remarks|default:'—' }}</td>
+                                <td>{{ record.date_recorded|date:'M j, Y' }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% else %}
+                <p class="empty-state">No behavioral records have been created yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
