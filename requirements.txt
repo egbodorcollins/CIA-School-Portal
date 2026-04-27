@@ -1,6 +1,7 @@
 Django==6.0.4
-djangorestframework==3.17.1
 python-decouple==3.8
 psycopg2-binary==2.9.12
 openpyxl==3.1.5
 pandas==3.0.2
+sentry-sdk==1.40.0
+reportlab==4.0.7

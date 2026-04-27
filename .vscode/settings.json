@@ -7,6 +7,10 @@
         "/^cd \"c:\\\\Users\\\\cegbo\\\\Documents\\\\CIA\\\\CIA School Portal\" ; python manage\\.py migrate$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^cd 'c:\\\\Users\\\\cegbo\\\\Documents\\\\CIA\\\\CIA School Portal'; python manage\\.py check$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

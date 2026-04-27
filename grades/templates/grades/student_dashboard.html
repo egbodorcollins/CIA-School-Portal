@@ -12,6 +12,7 @@
                 <p><strong>State of Origin:</strong> {{ student.state_of_origin|default:'Not provided' }}</p>
                 <p><strong>Sport House:</strong> {{ student.sport_house|default:'Not provided' }}</p>
                 <p><strong>Club & Society:</strong> {{ student.club_and_society|default:'Not provided' }}</p>
+                <p><a class="button button-secondary" href="{% url 'report_card_pdf' %}" target="_blank">Download Report Card PDF</a></p>
             </div>
             <div class="grades-table">
                 <h3>Academic Grades</h3>

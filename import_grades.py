@@ -28,12 +28,22 @@ def import_grades_from_excel(file_path):
                 student = Student.objects.get(student_id=row['student_id'])
                 subject = Subject.objects.get(code=row['subject_code'])
                 
+                marks = float(row['marks'])
+                if not (0 <= marks <= 100):
+                    errors.append(f"Row {index + 1}: Marks {marks} out of range (0-100)")
+                    continue
+                
+                term = row.get('term', 'first_term')
+                if term not in ['first_term', 'second_term', 'third_term']:
+                    errors.append(f"Row {index + 1}: Invalid term '{term}'")
+                    continue
+                
                 grade, created = Grade.objects.update_or_create(
                     student=student,
                     subject=subject,
-                    term=row.get('term', 'first_term'),
+                    term=term,
                     defaults={
-                        'marks': float(row['marks']),
+                        'marks': marks,
                         'remarks': row.get('remarks', '')
                     }
                 )
@@ -43,6 +53,8 @@ def import_grades_from_excel(file_path):
                 errors.append(f"Row {index + 1}: Student {row['student_id']} not found")
             except Subject.DoesNotExist:
                 errors.append(f"Row {index + 1}: Subject {row['subject_code']} not found")
+            except ValueError:
+                errors.append(f"Row {index + 1}: Invalid marks value")
             except Exception as e:
                 errors.append(f"Row {index + 1}: {str(e)}")
         
