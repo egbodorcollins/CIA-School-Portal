@@ -1,5 +1,7 @@
 from django.contrib import admin
-from .models import Student, Subject, Grade, BehavioralGrade, TermSetting
+from django.contrib.auth.admin import UserAdmin as DefaultUserAdmin
+from django.contrib.auth.models import User
+from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile
 
 
 @admin.register(Student)
@@ -40,6 +42,26 @@ class TermSettingAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+class ProfileInline(admin.StackedInline):
+    model = Profile
+    can_delete = False
+    verbose_name_plural = 'profile'
+    fk_name = 'user'
+
+
+class CustomUserAdmin(DefaultUserAdmin):
+    inlines = (ProfileInline,)
+
+
+try:
+    admin.site.unregister(User)
+except Exception:
+    pass
+
+admin.site.register(User, CustomUserAdmin)
+admin.site.register(Profile)
 
 
 @admin.register(Grade)

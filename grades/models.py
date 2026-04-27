@@ -1,6 +1,9 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from datetime import datetime
+from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 TERM_CHOICES = [
     ('first_term', 'First Term'),
@@ -191,3 +194,49 @@ class BehavioralGrade(models.Model):
     
     def __str__(self):
         return f"{self.student} - Behavioral Assessment ({self.term})"
+
+
+class Profile(models.Model):
+    ROLE_ADMIN = 'admin'
+    ROLE_CLASS_TEACHER = 'class_teacher'
+    ROLE_SUBJECT_TEACHER = 'subject_teacher'
+    ROLE_STUDENT = 'student'
+
+    ROLE_CHOICES = [
+        (ROLE_ADMIN, 'Admin'),
+        (ROLE_CLASS_TEACHER, 'Class Teacher'),
+        (ROLE_SUBJECT_TEACHER, 'Subject Teacher'),
+        (ROLE_STUDENT, 'Student'),
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_STUDENT)
+    assigned_class = models.CharField(max_length=50, blank=True, null=True, help_text="Class assigned to class teacher (e.g., Basic 1)")
+    assigned_subjects = models.ManyToManyField(Subject, blank=True, related_name='assigned_teachers')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'User Profile'
+        verbose_name_plural = 'User Profiles'
+
+    def __str__(self):
+        return f'{self.user.username} ({self.get_role_display()})'
+
+
+@receiver(post_save, sender=User)
+def create_or_update_user_profile(sender, instance, created, **kwargs):
+    if created:
+        try:
+            Profile.objects.create(user=instance)
+        except Exception:
+            pass
+    else:
+        # Ensure profile exists for existing users
+        try:
+            instance.profile.save()
+        except Exception:
+            try:
+                Profile.objects.get_or_create(user=instance)
+            except Exception:
+                pass

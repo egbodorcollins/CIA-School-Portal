@@ -2,7 +2,7 @@ from django import forms
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from .models import Student, Subject, Grade, BehavioralGrade, TermSetting
+from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile
 
 
 AUTO_STUDENT_PASSWORD = 'CIA@123456'
@@ -131,6 +131,11 @@ class StudentSignUpForm(forms.Form):
         if commit:
             user.save()
             student.save()
+            try:
+                Profile.objects.get_or_create(user=user, defaults={'role': Profile.ROLE_STUDENT})
+            except Exception:
+                # avoid breaking student creation if profile cannot be created for any reason
+                pass
 
         return user
 

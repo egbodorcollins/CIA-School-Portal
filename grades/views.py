@@ -5,7 +5,8 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from django.db import transaction
 from django.contrib.auth import logout
-from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.decorators import login_required
+from .decorators import class_teacher_or_admin_required, teacher_or_admin_required, admin_required
 from django.contrib import messages
 from django.contrib.auth.views import LoginView
 from django.utils import timezone
@@ -33,7 +34,7 @@ def home(request):
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
+@class_teacher_or_admin_required
 def register_student(request):
     if request.method == 'POST':
         form = StudentSignUpForm(request.POST)
@@ -62,11 +63,21 @@ def logout_view(request):
 
 @login_required
 def teacher_dashboard(request):
-    if not request.user.is_staff:
+    profile = getattr(request.user, 'profile', None)
+    if profile is None or profile.role == 'student':
         messages.warning(request, 'Teacher access only. Please sign in with a teacher account.')
         return redirect('student_dashboard')
 
-    students = Student.objects.all().order_by('last_name')
+    if profile.role == 'admin':
+        students = Student.objects.all().order_by('last_name')
+    elif profile.role == 'class_teacher':
+        students = Student.objects.filter(class_name=profile.assigned_class).order_by('last_name')
+    elif profile.role == 'subject_teacher':
+        assigned_subjects = profile.assigned_subjects.all()
+        students = Student.objects.filter(grades__subject__in=assigned_subjects).distinct().order_by('last_name')
+    else:
+        students = Student.objects.none()
+
     form = StudentSignUpForm()
     return render(request, 'grades/teacher_dashboard.html', {
         'students': students,
@@ -75,18 +86,26 @@ def teacher_dashboard(request):
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
+@admin_required
 def set_current_term(request):
     messages.info(request, 'Current academic term is managed in the Django admin dashboard.')
     return redirect('admin:grades_termsetting_changelist')
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
+@teacher_or_admin_required
 def enter_academic_scores(request):
     current_term = TermSetting.get_current_term()
+    profile = getattr(request.user, 'profile', None)
+
     if request.method == 'POST':
         form = GradeEntryForm(request.POST)
+        # Restrict student/subject querysets based on role
+        if profile and profile.role == 'class_teacher' and profile.assigned_class:
+            form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
+        if profile and profile.role == 'subject_teacher':
+            form.fields['subject'].queryset = profile.assigned_subjects.all()
+
         if form.is_valid():
             data = form.cleaned_data
             Grade.objects.update_or_create(
@@ -102,8 +121,17 @@ def enter_academic_scores(request):
             return redirect('enter_academic_scores')
     else:
         form = GradeEntryForm(initial={'term': current_term})
+        if profile and profile.role == 'class_teacher' and profile.assigned_class:
+            form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
+        if profile and profile.role == 'subject_teacher':
+            form.fields['subject'].queryset = profile.assigned_subjects.all()
 
     grades = Grade.objects.filter(term=current_term).select_related('student', 'subject').order_by('student__last_name', 'subject__name')
+    if profile and profile.role == 'class_teacher' and profile.assigned_class:
+        grades = grades.filter(student__class_name=profile.assigned_class)
+    if profile and profile.role == 'subject_teacher':
+        grades = grades.filter(subject__in=profile.assigned_subjects.all())
+
     return render(request, 'grades/enter_academic_scores.html', {
         'form': form,
         'grades': grades,
@@ -112,11 +140,16 @@ def enter_academic_scores(request):
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
+@class_teacher_or_admin_required
 def enter_behavioral_assessments(request):
     current_term = TermSetting.get_current_term()
+    profile = getattr(request.user, 'profile', None)
+
     if request.method == 'POST':
         form = BehavioralGradeEntryForm(request.POST)
+        if profile and profile.role == 'class_teacher' and profile.assigned_class:
+            form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
+
         if form.is_valid():
             data = form.cleaned_data
             BehavioralGrade.objects.update_or_create(
@@ -140,8 +173,13 @@ def enter_behavioral_assessments(request):
             return redirect('enter_behavioral_assessments')
     else:
         form = BehavioralGradeEntryForm(initial={'term': current_term})
+        if profile and profile.role == 'class_teacher' and profile.assigned_class:
+            form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
 
     reports = BehavioralGrade.objects.filter(term=current_term).select_related('student').order_by('student__last_name')
+    if profile and profile.role == 'class_teacher' and profile.assigned_class:
+        reports = reports.filter(student__class_name=profile.assigned_class)
+
     return render(request, 'grades/enter_behavioral_assessments.html', {
         'form': form,
         'reports': reports,
@@ -150,16 +188,21 @@ def enter_behavioral_assessments(request):
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
+@class_teacher_or_admin_required
 def manage_students(request):
-    students = Student.objects.all().order_by('last_name')
+    profile = getattr(request.user, 'profile', None)
+    if profile and profile.role == 'class_teacher' and profile.assigned_class:
+        students = Student.objects.filter(class_name=profile.assigned_class).order_by('last_name')
+    else:
+        students = Student.objects.all().order_by('last_name')
+
     return render(request, 'grades/manage_students.html', {
         'students': students,
     })
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
+@admin_required
 @require_POST
 def delete_student(request, student_id):
     student = Student.objects.filter(student_id=student_id).first()
@@ -173,7 +216,8 @@ def delete_student(request, student_id):
 
 @login_required
 def student_dashboard(request):
-    if request.user.is_staff:
+    profile = getattr(request.user, 'profile', None)
+    if profile and profile.role != 'student':
         return redirect('teacher_dashboard')
 
     student = None
