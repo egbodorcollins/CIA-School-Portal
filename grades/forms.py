@@ -1,9 +1,11 @@
 from django import forms
-from django.contrib.auth.forms import UserCreationForm
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import Student, Subject, Grade, BehavioralGrade, TermSetting
+
+
+AUTO_STUDENT_PASSWORD = 'CIA@123456'
 
 
 CLASS_CODE_MAP = {
@@ -39,6 +41,24 @@ CLASS_CODE_MAP = {
     'S3': 'S3',
 }
 
+CLASS_CHOICES = [
+    ('Nursery 1', 'Nursery 1'),
+    ('Nursery 2', 'Nursery 2'),
+    ('Nursery 3', 'Nursery 3'),
+    ('Basic 1', 'Basic 1'),
+    ('Basic 2', 'Basic 2'),
+    ('Basic 3', 'Basic 3'),
+    ('Basic 4', 'Basic 4'),
+    ('Basic 5', 'Basic 5'),
+    ('Basic 6', 'Basic 6'),
+    ('JSS 1', 'JSS 1'),
+    ('JSS 2', 'JSS 2'),
+    ('JSS 3', 'JSS 3'),
+    ('SSS 1', 'SSS 1'),
+    ('SSS 2', 'SSS 2'),
+    ('SSS 3', 'SSS 3'),
+]
+
 
 def normalize_class_name(class_name):
     return ''.join(character for character in str(class_name).upper() if character.isalnum())
@@ -67,33 +87,21 @@ def generate_student_id(class_name):
     return f'{prefix}{latest_sequence + 1:04X}'
 
 
-class StudentSignUpForm(UserCreationForm):
-    username = forms.CharField(required=False, widget=forms.HiddenInput())
+class StudentSignUpForm(forms.Form):
     first_name = forms.CharField(max_length=150, required=True)
     last_name = forms.CharField(max_length=150, required=True)
-    class_name = forms.CharField(max_length=50, required=True, help_text="Student's class (e.g., Nursery 2, Basic 5, SSS 3)")
+    class_name = forms.ChoiceField(choices=CLASS_CHOICES, required=True, help_text="Select the student's class so the portal can generate the student ID.")
     nationality = forms.CharField(max_length=50, required=False, initial='Nigeria')
     state_of_origin = forms.CharField(max_length=50, required=False)
     club_and_society = forms.CharField(max_length=100, required=False)
     sport_house = forms.CharField(max_length=50, required=False)
     date_of_birth = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date'}))
 
-    class Meta:
-        model = User
-        fields = ('username', 'first_name', 'last_name', 'password1', 'password2')
-
     def clean_class_name(self):
         class_name = self.cleaned_data.get('class_name', '').strip()
         if not get_class_code(class_name):
             raise ValidationError('Please choose a supported class name.')
         return class_name
-
-    def clean(self):
-        cleaned_data = super().clean()
-        class_name = cleaned_data.get('class_name')
-        if class_name:
-            cleaned_data['username'] = generate_student_id(class_name)
-        return cleaned_data
 
     def clean_date_of_birth(self):
         date_of_birth = self.cleaned_data.get('date_of_birth')
@@ -102,12 +110,11 @@ class StudentSignUpForm(UserCreationForm):
         return date_of_birth
 
     def save(self, commit=True):
-        user = super().save(commit=False)
-        generated_username = self.cleaned_data['username']
-
-        user.username = generated_username
+        generated_username = generate_student_id(self.cleaned_data['class_name'])
+        user = User(username=generated_username)
         user.first_name = self.cleaned_data['first_name']
         user.last_name = self.cleaned_data['last_name']
+        user.set_password(AUTO_STUDENT_PASSWORD)
 
         student = Student(
             student_id=generated_username,

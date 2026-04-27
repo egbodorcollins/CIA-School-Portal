@@ -1,0 +1,61 @@
+{% extends 'grades/base.html' %}
+{% block content %}
+<div class="page-shell">
+    <div class="dashboard-card">
+        <h2>Register New Student</h2>
+        <p>Complete the form below to create the student portal profile. The system will generate the student ID and password automatically.</p>
+        <div class="teacher-form-card">
+            <form method="post" novalidate>
+                {% csrf_token %}
+                {{ form.non_field_errors }}
+                {% for field in form.hidden_fields %}
+                    {{ field }}
+                {% endfor %}
+                <div class="field-row">
+                    {{ form.first_name.label_tag }}
+                    {{ form.first_name }}
+                    {% for error in form.first_name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.last_name.label_tag }}
+                    {{ form.last_name }}
+                    {% for error in form.last_name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.class_name.label_tag }}
+                    {{ form.class_name }}
+                    {% if form.class_name.help_text %}<small class="help-text">{{ form.class_name.help_text }}</small>{% endif %}
+                    {% for error in form.class_name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.nationality.label_tag }}
+                    {{ form.nationality }}
+                    {% for error in form.nationality.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.state_of_origin.label_tag }}
+                    {{ form.state_of_origin }}
+                    {% for error in form.state_of_origin.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.club_and_society.label_tag }}
+                    {{ form.club_and_society }}
+                    {% for error in form.club_and_society.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.sport_house.label_tag }}
+                    {{ form.sport_house }}
+                    {% for error in form.sport_house.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.date_of_birth.label_tag }}
+                    {{ form.date_of_birth }}
+                    {% for error in form.date_of_birth.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <button type="submit" class="button button-primary">Register Student</button>
+                <a class="button button-secondary" href="{% url 'teacher_dashboard' %}">Back to Dashboard</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

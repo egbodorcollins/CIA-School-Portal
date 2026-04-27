@@ -6,14 +6,13 @@ from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 
-from .forms import StudentSignUpForm, generate_student_id
+from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
 from .models import Student
 
 
 class StudentRegistrationTests(TestCase):
     def setUp(self):
         self.form_data = {
-            'username': '',
             'first_name': 'Jane',
             'last_name': 'Doe',
             'class_name': 'Nursery 2',
@@ -78,6 +77,46 @@ class PortalRenderingTests(TestCase):
         self.assertTemplateUsed(response, 'grades/base.html')
         self.assertContains(response, 'Teacher Dashboard')
 
+    def test_register_student_page_renders(self):
+        self.client.login(username='teacher', password='pass12345')
+
+        response = self.client.get(reverse('register_student'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'grades/register_student.html')
+        self.assertContains(response, 'Register New Student')
+
+    def test_register_student_invalid_post_renders_errors(self):
+        self.client.login(username='teacher', password='pass12345')
+
+        response = self.client.post(reverse('register_student'), data={})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'grades/register_student.html')
+        self.assertContains(response, 'This field is required')
+
+    @patch('grades.forms.timezone.now')
+    def test_register_student_valid_post_creates_profile(self, mock_now):
+        mock_now.return_value = datetime(2026, 4, 27, tzinfo=dt_timezone.utc)
+        self.client.login(username='teacher', password='pass12345')
+
+        response = self.client.post(reverse('register_student'), data={
+            'first_name': 'Mary',
+            'last_name': 'Adewale',
+            'class_name': 'Basic 5',
+            'nationality': 'Nigeria',
+            'state_of_origin': 'Lagos',
+            'club_and_society': '',
+            'sport_house': '',
+            'date_of_birth': '2011-01-01',
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Student profile created successfully')
+        self.assertTrue(Student.objects.filter(student_id='CIA/B52026/0001', first_name='Mary', last_name='Adewale').exists())
+        self.assertTrue(User.objects.filter(username='CIA/B52026/0001').exists())
+        self.assertTrue(User.objects.get(username='CIA/B52026/0001').check_password(AUTO_STUDENT_PASSWORD))
+
     def test_behavioral_assessment_template_renders_real_fields(self):
         self.client.login(username='teacher', password='pass12345')
 
@@ -117,3 +156,11 @@ class DeleteStudentTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertFalse(Student.objects.filter(student_id=self.student.student_id).exists())
+
+    def test_manage_students_page_renders_delete_form_for_slash_ids(self):
+        self.client.login(username='teacher', password='pass12345')
+
+        response = self.client.get(reverse('manage_students'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, reverse('delete_student', args=[self.student.student_id]))

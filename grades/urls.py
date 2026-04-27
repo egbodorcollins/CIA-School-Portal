@@ -12,7 +12,8 @@ urlpatterns = [
     path('teacher/enter-scores/', views.enter_academic_scores, name='enter_academic_scores'),
     path('teacher/enter-behavior/', views.enter_behavioral_assessments, name='enter_behavioral_assessments'),
     path('teacher/manage-students/', views.manage_students, name='manage_students'),
-    path('teacher/manage-students/delete/<str:student_id>/', views.delete_student, name='delete_student'),
+    # Student IDs include slashes, so this route must accept path segments.
+    path('teacher/manage-students/delete/<path:student_id>/', views.delete_student, name='delete_student'),
     path('student/dashboard/', views.student_dashboard, name='student_dashboard'),
     path('student/report/pdf/', views.report_card_pdf, name='report_card_pdf'),
 ]

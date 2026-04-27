@@ -1,11 +1,14 @@
 {% load static %}
-<div id="student-registration-modal" class="modal" style="display: none;">
+<div id="student-registration-modal" class="modal" style="display: {% if open_register_modal %}block{% else %}none{% endif %};">
     <div class="modal-content">
         <span class="close" onclick="closeModal()">&times;</span>
         <h2>Register New Student</h2>
         <form method="post" action="{% url 'register_student' %}">
             {% csrf_token %}
             {{ form.non_field_errors }}
+            {% for hidden_field in form.hidden_fields %}
+                {{ hidden_field }}
+            {% endfor %}
             {% for field in form.visible_fields %}
                 <div class="field-row">
                     {{ field.label_tag }}

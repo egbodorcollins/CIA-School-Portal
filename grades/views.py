@@ -40,12 +40,15 @@ def register_student(request):
         if form.is_valid():
             with transaction.atomic():
                 user = form.save()
-            messages.success(request, f'Student account created successfully. Generated ID: {user.username}.')
+            messages.success(
+                request,
+                f'Student profile created successfully. Login ID: {user.username}. Password: CIA@123456.'
+            )
             return redirect('teacher_dashboard')
     else:
         form = StudentSignUpForm()
 
-    return render(request, 'grades/register_student_modal.html', {
+    return render(request, 'grades/register_student.html', {
         'form': form,
     })
 
@@ -241,7 +244,9 @@ def report_card_pdf(request):
         highest_average = max(highest_average, average_score_for_student(classmate))
 
     response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="{student.student_id}_{latest_term}_report.pdf"'
+    # Keep the download filename filesystem-friendly because student IDs contain slashes.
+    safe_student_id = student.student_id.replace('/', '-')
+    response['Content-Disposition'] = f'attachment; filename="{safe_student_id}_{latest_term}_report.pdf"'
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=35, leftMargin=35, topMargin=35, bottomMargin=35)

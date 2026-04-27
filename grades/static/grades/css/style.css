@@ -199,6 +199,20 @@ body {
   gap: 8px;
 }
 
+.teacher-form-card {
+  margin-top: 24px;
+}
+
+.teacher-form-card input,
+.teacher-form-card select,
+.teacher-form-card textarea {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1px solid #e8e2dc;
+  border-radius: 14px;
+  font-size: 1rem;
+}
+
 .field-error {
   color: #b72f2f;
   font-size: 0.9rem;
@@ -354,9 +368,22 @@ body {
   margin-bottom: 12px;
 }
 
+.message.success {
+  background: rgba(53, 154, 94, 0.14);
+  color: #1f6b3e;
+  border: 1px solid rgba(53, 154, 94, 0.24);
+}
+
 .message.warning {
   background: rgba(249, 166, 20, 0.14);
   color: #9e6500;
+  border: 1px solid rgba(249, 166, 20, 0.24);
+}
+
+.message.error {
+  background: rgba(200, 26, 38, 0.12);
+  color: #8c1320;
+  border: 1px solid rgba(200, 26, 38, 0.22);
 }
 
 @media (max-width: 860px) {
