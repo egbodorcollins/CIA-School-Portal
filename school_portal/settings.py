@@ -14,6 +14,17 @@ from pathlib import Path
 from decouple import config
 import sentry_sdk
 
+
+def bool_env(value):
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in ('true', '1', 't', 'y', 'yes', 'on'):
+        return True
+    if normalized in ('false', '0', 'f', 'n', 'no', 'off', 'release', 'prod', 'production'):
+        return False
+    raise ValueError(f'Invalid truth value: {value}')
+
 sentry_sdk.init(
     dsn=config('SENTRY_DSN', default=None),
     # Set traces_sample_rate to 1.0 to capture 100%
@@ -36,7 +47,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = config('SECRET_KEY')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = config('DEBUG', default=False, cast=bool)
+DEBUG = config('DEBUG', default='False', cast=bool_env)
 
 ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='', cast=lambda v: [s.strip() for s in v.split(',')])
 

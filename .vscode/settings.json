@@ -11,6 +11,7 @@
         "/^cd 'c:\\\\Users\\\\cegbo\\\\Documents\\\\CIA\\\\CIA School Portal'; python manage\\.py check$/": {
             "approve": true,
             "matchCommandLine": true
-        }
+        },
+        "&": true
     }
 }
