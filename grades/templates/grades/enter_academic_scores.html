@@ -1,9 +1,10 @@
 {% extends 'grades/base.html' %}
+{% load custom_filters %}
 {% block content %}
 <div class="page-shell">
     <div class="dashboard-card">
         <h2>Enter Academic Scores</h2>
-        <p>Use this page to record or update grades for {{ current_term|capfirst|replace:'_',' ' }}.</p>
+        <p>Use this page to record or update grades for {{ current_term|capfirst|replace:"_ " }}.</p>
         <div class="teacher-form-card">
             <form method="post" novalidate>
                 {% csrf_token %}
@@ -37,7 +38,7 @@
             </form>
         </div>
         <div class="grades-table" style="margin-top: 28px;">
-            <h3>Grades for {{ current_term|capfirst|replace:'_',' ' }}</h3>
+            <h3>Grades for {{ current_term|capfirst|replace:"_ " }}</h3>
             {% if grades %}
                 <table>
                     <thead>

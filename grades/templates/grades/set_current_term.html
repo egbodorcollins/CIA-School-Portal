@@ -1,4 +1,5 @@
 {% extends 'grades/base.html' %}
+{% load custom_filters %}
 {% block content %}
 <div class="page-shell">
     <div class="dashboard-card">
@@ -19,7 +20,7 @@
         {% if term_setting %}
             <div class="status-card" style="margin-top: 24px;">
                 <h3>Current Selection</h3>
-                <p>Active term is currently set to <strong>{{ term_setting.current_term|capfirst|replace:'_',' ' }}</strong>.</p>
+                <p>Active term is currently set to <strong>{{ term_setting.current_term|capfirst|replace:"_ " }}</strong>.</p>
                 <p>Last updated on {{ term_setting.updated_at|date:'M j, Y g:i a' }}.</p>
             </div>
         {% endif %}

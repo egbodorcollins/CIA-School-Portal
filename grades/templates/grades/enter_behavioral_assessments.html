@@ -14,14 +14,64 @@
                     {% for error in form.student.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
                 <div class="field-row">
-                    {{ form.behavioral_score.label_tag }}
-                    {{ form.behavioral_score }}
-                    {% for error in form.behavioral_score.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                    {{ form.term.label_tag }}
+                    {{ form.term }}
+                    {% for error in form.term.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
                 <div class="field-row">
-                    {{ form.comments.label_tag }}
-                    {{ form.comments }}
-                    {% for error in form.comments.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                    {{ form.punctuality.label_tag }}
+                    {{ form.punctuality }}
+                    {% for error in form.punctuality.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.relationship_with_staff.label_tag }}
+                    {{ form.relationship_with_staff }}
+                    {% for error in form.relationship_with_staff.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.politeness.label_tag }}
+                    {{ form.politeness }}
+                    {% for error in form.politeness.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.neatness.label_tag }}
+                    {{ form.neatness }}
+                    {% for error in form.neatness.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.co_operation.label_tag }}
+                    {{ form.co_operation }}
+                    {% for error in form.co_operation.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.obedience.label_tag }}
+                    {{ form.obedience }}
+                    {% for error in form.obedience.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.attentiveness.label_tag }}
+                    {{ form.attentiveness }}
+                    {% for error in form.attentiveness.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.adjustment_in_school.label_tag }}
+                    {{ form.adjustment_in_school }}
+                    {% for error in form.adjustment_in_school.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.relationship_with_peers.label_tag }}
+                    {{ form.relationship_with_peers }}
+                    {% for error in form.relationship_with_peers.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.times_present.label_tag }}
+                    {{ form.times_present }}
+                    {% for error in form.times_present.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.remarks.label_tag }}
+                    {{ form.remarks }}
+                    {% for error in form.remarks.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
                 <button type="submit" class="button button-primary">Save Assessment</button>
             </form>

@@ -3,11 +3,13 @@ from datetime import timedelta
 
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
+from django.db import transaction
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required, user_passes_test
 from django.contrib import messages
 from django.contrib.auth.views import LoginView
 from django.utils import timezone
+from django.views.decorators.http import require_POST
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
@@ -36,8 +38,9 @@ def register_student(request):
     if request.method == 'POST':
         form = StudentSignUpForm(request.POST)
         if form.is_valid():
-            form.save()
-            messages.success(request, 'Student account created successfully.')
+            with transaction.atomic():
+                user = form.save()
+            messages.success(request, f'Student account created successfully. Generated ID: {user.username}.')
             return redirect('teacher_dashboard')
     else:
         form = StudentSignUpForm()
@@ -169,6 +172,7 @@ def manage_students(request):
 
 @login_required
 @user_passes_test(lambda u: u.is_staff)
+@require_POST
 def delete_student(request, student_id):
     student = Student.objects.filter(student_id=student_id).first()
     if student:
