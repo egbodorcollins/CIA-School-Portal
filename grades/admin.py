@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DefaultUserAdmin
 from django.contrib.auth.models import User
+from django import forms
+from .forms import CLASS_CHOICES
 from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile
 
 
@@ -49,6 +51,23 @@ class ProfileInline(admin.StackedInline):
     can_delete = False
     verbose_name_plural = 'profile'
     fk_name = 'user'
+    # We will set a custom form below for the inline
+
+
+class ProfileAdminForm(forms.ModelForm):
+    assigned_class = forms.ChoiceField(choices=[('', '---------')] + CLASS_CHOICES, required=False)
+
+    class Meta:
+        model = Profile
+        fields = '__all__'
+
+
+class ProfileInline(admin.StackedInline):
+    model = Profile
+    can_delete = False
+    verbose_name_plural = 'profile'
+    fk_name = 'user'
+    form = ProfileAdminForm
 
 
 class CustomUserAdmin(DefaultUserAdmin):
@@ -61,7 +80,15 @@ except Exception:
     pass
 
 admin.site.register(User, CustomUserAdmin)
-admin.site.register(Profile)
+
+
+@admin.register(Profile)
+class ProfileAdmin(admin.ModelAdmin):
+    form = ProfileAdminForm
+    list_display = ['user', 'role', 'assigned_class']
+    list_filter = ['role', 'assigned_class']
+    search_fields = ['user__username', 'user__first_name', 'user__last_name']
+    filter_horizontal = ('assigned_subjects',)
 
 
 @admin.register(Grade)

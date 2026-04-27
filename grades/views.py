@@ -16,8 +16,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from .models import Student, Grade, BehavioralGrade, TermSetting
-from .forms import StudentSignUpForm, GradeEntryForm, BehavioralGradeEntryForm
+from .models import Student, Grade, BehavioralGrade, TermSetting, Profile
+from .forms import StudentSignUpForm, GradeEntryForm, BehavioralGradeEntryForm, TeacherCreationForm
 
 
 class RateLimitedLoginView(LoginView):
@@ -50,6 +50,59 @@ def register_student(request):
         form = StudentSignUpForm()
 
     return render(request, 'grades/register_student.html', {
+        'form': form,
+    })
+
+
+@login_required
+@class_teacher_or_admin_required
+def register_teacher(request):
+    profile = getattr(request.user, 'profile', None)
+    if profile is None:
+        messages.error(request, 'Unable to determine your role. Contact admin.')
+        return redirect('teacher_dashboard')
+
+    # Admins can create admins, class teachers and subject teachers.
+    # Class teachers can only create subject teachers (and assign them subjects).
+    if profile.role == Profile.ROLE_ADMIN:
+        allowed_roles = [r[0] for r in Profile.ROLE_CHOICES if r[0] != Profile.ROLE_STUDENT]
+    elif profile.role == Profile.ROLE_CLASS_TEACHER:
+        allowed_roles = [Profile.ROLE_SUBJECT_TEACHER]
+    else:
+        messages.error(request, 'You do not have permission to create teacher accounts.')
+        return redirect('teacher_dashboard')
+
+    if request.method == 'POST':
+        form = TeacherCreationForm(request.POST)
+        # limit role choices to allowed_roles
+        form.fields['role'].choices = [c for c in Profile.ROLE_CHOICES if c[0] in allowed_roles]
+        if profile.role == Profile.ROLE_CLASS_TEACHER:
+            form.fields['assigned_class'].initial = profile.assigned_class
+
+        if form.is_valid():
+            chosen_role = form.cleaned_data.get('role')
+            if chosen_role not in allowed_roles:
+                messages.error(request, 'Invalid role selected.')
+                return redirect('register_teacher')
+            user = form.save()
+            
+            # Ensure profile permissions and assignments are strictly enforced
+            user_profile = user.profile
+            user_profile.role = chosen_role
+            if profile.role == Profile.ROLE_CLASS_TEACHER:
+                # Class teachers can only create accounts for their own class
+                user_profile.assigned_class = profile.assigned_class
+            user_profile.save()
+
+            messages.success(request, f'{dict(Profile.ROLE_CHOICES).get(chosen_role, chosen_role)} account created for {user.username}.')
+            return redirect('teacher_dashboard')
+    else:
+        form = TeacherCreationForm()
+        form.fields['role'].choices = [c for c in Profile.ROLE_CHOICES if c[0] in allowed_roles]
+        if profile.role == Profile.ROLE_CLASS_TEACHER:
+            form.fields['assigned_class'].initial = profile.assigned_class
+
+    return render(request, 'grades/register_teacher.html', {
         'form': form,
     })
 

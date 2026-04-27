@@ -178,3 +178,39 @@ class TermSettingForm(forms.ModelForm):
     class Meta:
         model = TermSetting
         fields = ['current_term']
+
+
+class TeacherCreationForm(forms.Form):
+    username = forms.CharField(max_length=150, required=True, help_text="Login username for the teacher")
+    first_name = forms.CharField(max_length=150, required=False)
+    last_name = forms.CharField(max_length=150, required=False)
+    email = forms.EmailField(required=False)
+    role = forms.ChoiceField(choices=Profile.ROLE_CHOICES, required=True)
+    assigned_class = forms.ChoiceField(choices=[('', '---------')] + CLASS_CHOICES, required=False)
+    assigned_subjects = forms.ModelMultipleChoiceField(queryset=Subject.objects.all(), required=False, widget=forms.SelectMultiple)
+    password = forms.CharField(required=False, widget=forms.PasswordInput, help_text='Optional initial password; defaults to the portal default if left blank')
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if username and User.objects.filter(username=username).exists():
+            raise ValidationError('A user with this username already exists.')
+        return username
+
+    def save(self, commit=True):
+        username = self.cleaned_data.get('username')
+        user = User(username=username)
+        user.first_name = self.cleaned_data.get('first_name', '')
+        user.last_name = self.cleaned_data.get('last_name', '')
+        user.email = self.cleaned_data.get('email', '')
+        password = self.cleaned_data.get('password') or AUTO_STUDENT_PASSWORD
+        user.set_password(password)
+        if commit:
+            user.save()
+            profile, _ = Profile.objects.get_or_create(user=user)
+            profile.role = self.cleaned_data.get('role')
+            profile.assigned_class = self.cleaned_data.get('assigned_class') or ''
+            profile.save()
+            subjects = self.cleaned_data.get('assigned_subjects')
+            if subjects:
+                profile.assigned_subjects.set(subjects)
+        return user
