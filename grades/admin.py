@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Student, Subject, Grade, BehavioralGrade
+from .models import Student, Subject, Grade, BehavioralGrade, TermSetting
 
 
 @admin.register(Student)
@@ -29,6 +29,17 @@ class SubjectAdmin(admin.ModelAdmin):
     list_filter = ['credit_hours']
     search_fields = ['code', 'name']
     ordering = ['code']
+
+
+@admin.register(TermSetting)
+class TermSettingAdmin(admin.ModelAdmin):
+    list_display = ['current_term', 'updated_at']
+    fields = ['current_term', 'updated_at']
+    readonly_fields = ['updated_at']
+    ordering = ['-updated_at']
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(Grade)

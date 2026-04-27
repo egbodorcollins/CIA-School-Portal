@@ -70,7 +70,7 @@ class TermSetting(models.Model):
 
     @classmethod
     def get_current_term(cls):
-        term_setting = cls.objects.first()
+        term_setting = cls.objects.order_by('-updated_at').first()
         return term_setting.current_term if term_setting else 'first_term'
 
     def __str__(self):

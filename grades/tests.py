@@ -64,7 +64,11 @@ class StudentRegistrationTests(TestCase):
 
 class PortalRenderingTests(TestCase):
     def setUp(self):
-        self.staff_user = User.objects.create_user(username='teacher', password='pass12345')
+        self.staff_user = User.objects.create_user(
+            username='teacher',
+            password='pass12345',
+            first_name='Grace',
+        )
         self.staff_user.is_staff = True
         self.staff_user.save()
 
@@ -76,6 +80,17 @@ class PortalRenderingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'grades/base.html')
         self.assertContains(response, 'Teacher Dashboard')
+        self.assertContains(response, 'Logged in as Grace')
+        self.assertContains(response, 'Term: First Term')
+        self.assertContains(response, 'Date:')
+
+    def test_set_current_term_redirects_to_admin_dashboard(self):
+        self.client.login(username='teacher', password='pass12345')
+
+        response = self.client.get(reverse('set_current_term'))
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.url, reverse('admin:grades_termsetting_changelist'))
 
     def test_register_student_page_renders(self):
         self.client.login(username='teacher', password='pass12345')

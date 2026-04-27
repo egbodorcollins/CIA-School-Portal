@@ -16,7 +16,7 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from .models import Student, Grade, BehavioralGrade, TermSetting
-from .forms import StudentSignUpForm, GradeEntryForm, BehavioralGradeEntryForm, TermSettingForm
+from .forms import StudentSignUpForm, GradeEntryForm, BehavioralGradeEntryForm
 
 
 class RateLimitedLoginView(LoginView):
@@ -68,32 +68,17 @@ def teacher_dashboard(request):
 
     students = Student.objects.all().order_by('last_name')
     form = StudentSignUpForm()
-    current_term = TermSetting.get_current_term()
     return render(request, 'grades/teacher_dashboard.html', {
         'students': students,
         'form': form,
-        'current_term': current_term,
     })
 
 
 @login_required
 @user_passes_test(lambda u: u.is_staff)
 def set_current_term(request):
-    term_setting, _ = TermSetting.objects.get_or_create(pk=1)
-    if request.method == 'POST':
-        form = TermSettingForm(request.POST, instance=term_setting)
-        if form.is_valid():
-            form.save()
-            messages.success(request, 'Current academic term has been updated.')
-            return redirect('teacher_dashboard')
-    else:
-        form = TermSettingForm(instance=term_setting)
-
-    return render(request, 'grades/set_current_term.html', {
-        'form': form,
-        'term_setting': term_setting,
-        'current_term': term_setting.current_term,
-    })
+    messages.info(request, 'Current academic term is managed in the Django admin dashboard.')
+    return redirect('admin:grades_termsetting_changelist')
 
 
 @login_required

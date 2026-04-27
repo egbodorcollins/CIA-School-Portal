@@ -15,7 +15,7 @@
                             <tr>
                                 <td>{{ student.first_name }} {{ student.last_name }}</td>
                                 <td>{{ student.class_name|default:'N/A' }}</td>
-                                <td>—</td>
+                                <td>-</td>
                                 <td>{{ student.enrollment_date|date:'M j, Y' }}</td>
                                 <td>
                                     <form method="post" action="{% url 'delete_student' student.student_id %}" style="display:inline;">

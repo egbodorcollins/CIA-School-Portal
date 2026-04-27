@@ -1,24 +1,22 @@
 {% extends 'grades/base.html' %}
-{% load custom_filters %}
 {% block content %}
 <div class="dashboard-shell">
     <div class="dashboard-card teacher-card">
         <h2>Teacher Dashboard</h2>
         <p>Welcome, {{ user.get_full_name|default:user.username }}.</p>
-        <p class="current-term-label">Active Term: <strong>{{ current_term|capfirst|replace:"_ " }}</strong></p>
+        <p class="helper-text">Academic term settings are managed in the admin dashboard.</p>
         <div class="teacher-actions">
             <a class="button button-primary" href="{% url 'register_student' %}">Register New Student</a>
             <a class="button button-secondary" href="{% url 'enter_academic_scores' %}">Enter Academic Scores</a>
             <a class="button button-secondary" href="{% url 'enter_behavioral_assessments' %}">Enter Behavioral Assessments</a>
             <a class="button button-secondary" href="{% url 'manage_students' %}">Manage Students</a>
-            <a class="button button-secondary" href="{% url 'set_current_term' %}">Set Current Term</a>
         </div>
         <div class="student-list">
             <h3>Student Roster</h3>
             {% if students %}
                 <ul>
                     {% for student in students %}
-                        <li>{{ student.student_id }} — {{ student.first_name }} {{ student.last_name }} ({{ student.class_name|default:'No Class' }})</li>
+                        <li>{{ student.student_id }} - {{ student.first_name }} {{ student.last_name }} ({{ student.class_name|default:'No Class' }})</li>
                     {% endfor %}
                 </ul>
             {% else %}
