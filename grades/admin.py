@@ -17,7 +17,7 @@ class StudentAdmin(admin.ModelAdmin):
             'fields': ('student_id', 'first_name', 'last_name', 'class_name', 'nationality', 'state_of_origin')
         }),
         ('School Activities', {
-            'fields': ('club_and_society', 'sport_house'),
+            'fields': ('club_and_society', 'sport_house', 'subjects'),
             'classes': ('collapse',)
         }),
         ('Additional Info', {

@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile
+from .subject_map import STANDARD_SUBJECTS
 
 
 AUTO_STUDENT_PASSWORD = 'CIA@123456'
@@ -145,6 +146,25 @@ class StudentSignUpForm(forms.Form):
         if commit:
             user.save()
             student.save()
+            # Auto-enroll the student into standard subjects for their class for the active term
+            try:
+                class_code = get_class_code(self.cleaned_data['class_name'])
+                term_map = {
+                    'first_term': '1',
+                    'second_term': '2',
+                    'third_term': '3',
+                }
+                current_term = TermSetting.get_current_term()
+                term_digit = term_map.get(current_term, '1')
+                if class_code and class_code in STANDARD_SUBJECTS:
+                    abbrs = [abbr for abbr, _ in STANDARD_SUBJECTS.get(class_code, [])]
+                    codes = [f"{abbr} {class_code}{term_digit}" for abbr in abbrs]
+                    subjects_qs = Subject.objects.filter(code__in=codes)
+                    if subjects_qs.exists():
+                        student.subjects.set(subjects_qs)
+            except Exception:
+                # non-fatal: if auto-enroll fails, continue without blocking registration
+                pass
             try:
                 Profile.objects.get_or_create(user=user, defaults={'role': Profile.ROLE_STUDENT})
             except Exception:

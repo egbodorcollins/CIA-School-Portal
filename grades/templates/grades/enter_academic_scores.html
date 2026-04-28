@@ -6,14 +6,42 @@
         <h2>Enter Academic Scores</h2>
         <p>Use this page to record or update grades for {{ current_term|capfirst|replace:"_ " }}.</p>
         <div class="teacher-form-card">
+            {% comment %} Student selection (select first, then subjects are limited ) {% endcomment %}
+            <div style="margin-bottom:12px">
+                {% if students %}
+                    <form method="get" class="student-select-form">
+                        <label for="student-select">Select Student</label>
+                        <select id="student-select" name="student" onchange="this.form.submit()">
+                            <option value="">-- Select student --</option>
+                            {% for s in students %}
+                                <option value="{{ s.pk }}" {% if selected_student and s.pk == selected_student.pk %}selected{% endif %}>{{ s.first_name }} {{ s.last_name }} ({{ s.student_id }})</option>
+                            {% endfor %}
+                        </select>
+                        <noscript><button type="submit" class="button">Select</button></noscript>
+                    </form>
+                {% else %}
+                    <p class="empty-state">No students available for selection.</p>
+                {% endif %}
+            </div>
+
             <form method="post" novalidate>
                 {% csrf_token %}
                 {{ form.non_field_errors }}
+                {% if not selected_student %}
                 <div class="field-row">
                     {{ form.student.label_tag }}
                     {{ form.student }}
                     {% for error in form.student.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
+                {% else %}
+                {{ form.student }}
+                <div class="field-row">
+                    <label>Selected Student</label>
+                    <div>{{ selected_student.first_name }} {{ selected_student.last_name }} ({{ selected_student.student_id }})
+                        <a href="{% url 'enter_academic_scores' %}" class="button" style="margin-left:8px;">Change</a>
+                    </div>
+                </div>
+                {% endif %}
                 <div class="field-row">
                     {{ form.subject.label_tag }}
                     {{ form.subject }}

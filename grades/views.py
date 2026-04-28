@@ -17,7 +17,8 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from .models import Student, Grade, BehavioralGrade, TermSetting, Profile
-from .forms import StudentSignUpForm, GradeEntryForm, BehavioralGradeEntryForm, TeacherCreationForm
+from .forms import StudentSignUpForm, GradeEntryForm, BehavioralGradeEntryForm, TeacherCreationForm, get_class_code
+from django.forms import HiddenInput
 
 
 class RateLimitedLoginView(LoginView):
@@ -151,13 +152,36 @@ def enter_academic_scores(request):
     current_term = TermSetting.get_current_term()
     profile = getattr(request.user, 'profile', None)
 
+    # Prepare students available for selection based on user's role
+    if profile and profile.role == Profile.ROLE_ADMIN:
+        students_for_select = Student.objects.all().order_by('last_name')
+    elif profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
+        students_for_select = Student.objects.filter(class_name=profile.assigned_class).order_by('last_name')
+    elif profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+        students_for_select = Student.objects.filter(subjects__in=profile.assigned_subjects.all()).distinct().order_by('last_name')
+    else:
+        students_for_select = Student.objects.none()
+
+    selected_student = None
+    sel_student_pk = request.GET.get('student')
+    if sel_student_pk:
+        try:
+            selected_student = students_for_select.get(pk=sel_student_pk)
+        except Exception:
+            selected_student = None
+
     if request.method == 'POST':
         form = GradeEntryForm(request.POST)
+
         # Restrict student/subject querysets based on role
-        if profile and profile.role == 'class_teacher' and profile.assigned_class:
+        if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
             form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
-        if profile and profile.role == 'subject_teacher':
+        if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
             form.fields['subject'].queryset = profile.assigned_subjects.all()
+
+        # If a student was pre-selected, lock the student field
+        if selected_student:
+            form.fields['student'].queryset = Student.objects.filter(pk=selected_student.pk)
 
         if form.is_valid():
             data = form.cleaned_data
@@ -176,24 +200,55 @@ def enter_academic_scores(request):
                 }
             )
             messages.success(request, 'Academic score saved successfully.')
+            if selected_student:
+                return redirect(f"{request.path}?student={selected_student.pk}")
             return redirect('enter_academic_scores')
     else:
         form = GradeEntryForm(initial={'term': current_term})
-        if profile and profile.role == 'class_teacher' and profile.assigned_class:
+        if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
             form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
-        if profile and profile.role == 'subject_teacher':
+        if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
             form.fields['subject'].queryset = profile.assigned_subjects.all()
 
-    grades = Grade.objects.filter(term=current_term).select_related('student', 'subject').order_by('student__last_name', 'subject__name')
-    if profile and profile.role == 'class_teacher' and profile.assigned_class:
-        grades = grades.filter(student__class_name=profile.assigned_class)
-    if profile and profile.role == 'subject_teacher':
-        grades = grades.filter(subject__in=profile.assigned_subjects.all())
+        if selected_student:
+            # Lock and hide the student field
+            form.fields['student'].queryset = Student.objects.filter(pk=selected_student.pk)
+            form.fields['student'].initial = selected_student.pk
+            form.fields['student'].widget = HiddenInput()
+
+            # Restrict subjects to the student's enrolled subjects for the current term
+            try:
+                term_map = {'first_term': '1', 'second_term': '2', 'third_term': '3'}
+                term_digit = term_map.get(current_term, '1')
+                class_code = get_class_code(selected_student.class_name)
+                if class_code:
+                    subj_qs = selected_student.subjects.filter(code__endswith=f"{class_code}{term_digit}")
+                else:
+                    subj_qs = selected_student.subjects.all()
+
+                if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+                    subj_qs = subj_qs.filter(pk__in=profile.assigned_subjects.all())
+
+                form.fields['subject'].queryset = subj_qs
+            except Exception:
+                form.fields['subject'].queryset = selected_student.subjects.all()
+
+    # Show only selected student's grades when a student is selected
+    if selected_student:
+        grades = Grade.objects.filter(term=current_term, student=selected_student).select_related('student', 'subject').order_by('subject__name')
+    else:
+        grades = Grade.objects.filter(term=current_term).select_related('student', 'subject').order_by('student__last_name', 'subject__name')
+        if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
+            grades = grades.filter(student__class_name=profile.assigned_class)
+        if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+            grades = grades.filter(subject__in=profile.assigned_subjects.all())
 
     return render(request, 'grades/enter_academic_scores.html', {
         'form': form,
         'grades': grades,
         'current_term': current_term,
+        'students': students_for_select,
+        'selected_student': selected_student,
     })
 
 

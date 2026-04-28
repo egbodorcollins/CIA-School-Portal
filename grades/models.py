@@ -25,6 +25,7 @@ class Student(models.Model):
     sport_house = models.CharField(max_length=50, blank=True, null=True)
     date_of_birth = models.DateField(blank=True, null=True)
     enrollment_date = models.DateField(default=datetime.today)
+    subjects = models.ManyToManyField('Subject', blank=True, related_name='students', help_text='Subjects the student is enrolled in for the current term')
     
     class Meta:
         ordering = ['last_name', 'first_name']
