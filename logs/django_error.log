@@ -22,3 +22,4 @@
 "GET /teacher/enter-scores/ HTTP/1.1" 500 59
 "GET /teacher/manage-students/ HTTP/1.1" 500 59
 "GET /teacher/manage-students/ HTTP/1.1" 500 59
+"GET /student/report/pdf/ HTTP/1.1" 500 59

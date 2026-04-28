@@ -20,9 +20,34 @@
                     {% for error in form.subject.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
                 <div class="field-row">
-                    {{ form.marks.label_tag }}
-                    {{ form.marks }}
-                    {% for error in form.marks.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                    {{ form.homework.label_tag }}
+                    {{ form.homework }}
+                    {% for error in form.homework.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.class_work.label_tag }}
+                    {{ form.class_work }}
+                    {% for error in form.class_work.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.project.label_tag }}
+                    {{ form.project }}
+                    {% for error in form.project.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.first_test.label_tag }}
+                    {{ form.first_test }}
+                    {% for error in form.first_test.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.midterm_test.label_tag }}
+                    {{ form.midterm_test }}
+                    {% for error in form.midterm_test.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
+                    {{ form.exam.label_tag }}
+                    {{ form.exam }}
+                    {% for error in form.exam.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
                 <div class="field-row">
                     {{ form.term.label_tag }}
@@ -37,24 +62,42 @@
                 <button type="submit" class="button button-primary">Save Score</button>
             </form>
         </div>
-        <div class="grades-table" style="margin-top: 28px;">
+                <div class="grades-table" style="margin-top: 28px;">
             <h3>Grades for {{ current_term|capfirst|replace:"_ " }}</h3>
             {% if grades %}
                 <table>
-                    <thead>
-                        <tr><th>Student</th><th>Subject</th><th>Marks</th><th>Letter</th><th>Remarks</th></tr>
-                    </thead>
-                    <tbody>
-                        {% for grade in grades %}
-                            <tr>
-                                <td>{{ grade.student.first_name }} {{ grade.student.last_name }}</td>
-                                <td>{{ grade.subject.name }}</td>
-                                <td>{{ grade.marks }}</td>
-                                <td>{{ grade.letter_grade }}</td>
-                                <td>{{ grade.remarks|default:'—' }}</td>
-                            </tr>
-                        {% endfor %}
-                    </tbody>
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>Subject</th>
+                                    <th>HW</th>
+                                    <th>CW</th>
+                                    <th>PRJ</th>
+                                    <th>T1</th>
+                                    <th>MID</th>
+                                    <th>EXAM</th>
+                                    <th>Total</th>
+                                    <th>Letter</th>
+                                    <th>Remarks</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for grade in grades %}
+                                    <tr>
+                                        <td>{{ grade.student.first_name }} {{ grade.student.last_name }}</td>
+                                        <td>{{ grade.subject.name }}</td>
+                                        <td>{{ grade.homework }}</td>
+                                        <td>{{ grade.class_work }}</td>
+                                        <td>{{ grade.project }}</td>
+                                        <td>{{ grade.first_test }}</td>
+                                        <td>{{ grade.midterm_test }}</td>
+                                        <td>{{ grade.exam }}</td>
+                                        <td>{{ grade.marks }}</td>
+                                        <td>{{ grade.letter_grade }}</td>
+                                        <td>{{ grade.remarks|default:'—' }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
                 </table>
             {% else %}
                 <p class="empty-state">No academic scores have been recorded for the active term yet.</p>

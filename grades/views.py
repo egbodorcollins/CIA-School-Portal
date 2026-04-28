@@ -166,8 +166,13 @@ def enter_academic_scores(request):
                 subject=data['subject'],
                 term=data['term'],
                 defaults={
-                    'marks': data['marks'],
-                    'remarks': data['remarks'],
+                    'homework': data.get('homework', 0),
+                    'class_work': data.get('class_work', 0),
+                    'project': data.get('project', 0),
+                    'first_test': data.get('first_test', 0),
+                    'midterm_test': data.get('midterm_test', 0),
+                    'exam': data.get('exam', 0),
+                    'remarks': data.get('remarks', ''),
                 }
             )
             messages.success(request, 'Academic score saved successfully.')
@@ -354,23 +359,44 @@ def report_card_pdf(request):
         ('LINEBEFORE', (2, 0), (2, -1), 1, colors.black),
     ]))
 
-    assessment_data = [['SUBJECT', 'CLASS', 'PROJ', 'TEST', 'C.A', 'EXAMS', 'TOTAL', 'GRADE', 'POSITION']]
+    assessment_data = [['SUBJECT', 'HW', 'CW', 'PRJ', 'T1', 'MID', 'EXAM', 'TOTAL', 'GRADE', 'POSITION']]
+    hw_total = cw_total = proj_total = t1_total = mid_total = exam_total = 0
     for idx, grade in enumerate(selected_grades, start=1):
+        hw_total += getattr(grade, 'homework', 0) or 0
+        cw_total += getattr(grade, 'class_work', 0) or 0
+        proj_total += getattr(grade, 'project', 0) or 0
+        t1_total += getattr(grade, 'first_test', 0) or 0
+        mid_total += getattr(grade, 'midterm_test', 0) or 0
+        exam_total += getattr(grade, 'exam', 0) or 0
+
         assessment_data.append([
             grade.subject.name,
-            '15',
-            '5',
-            '20',
-            '40',
-            '20',
+            f'{grade.homework:.0f}',
+            f'{grade.class_work:.0f}',
+            f'{grade.project:.0f}',
+            f'{grade.first_test:.0f}',
+            f'{grade.midterm_test:.0f}',
+            f'{grade.exam:.0f}',
             f'{grade.marks:.0f}',
             grade.letter_grade,
             str(idx),
         ])
 
     total_marks = sum(g.marks for g in selected_grades)
-    assessment_data.append(['TOTAL', '180', '57', '226', '463', '20', f'{total_marks:.0f}', '', ''])
-    assessment_table = Table(assessment_data, colWidths=[120, 35, 35, 35, 35, 45, 40, 35, 35])
+    assessment_data.append([
+        'TOTAL',
+        f'{hw_total:.0f}',
+        f'{cw_total:.0f}',
+        f'{proj_total:.0f}',
+        f'{t1_total:.0f}',
+        f'{mid_total:.0f}',
+        f'{exam_total:.0f}',
+        f'{total_marks:.0f}',
+        '',
+        '',
+    ])
+
+    assessment_table = Table(assessment_data, colWidths=[120, 30, 30, 30, 30, 30, 40, 40, 35, 35])
     assessment_table.setStyle(TableStyle([
         ('GRID', (0, 0), (-1, -2), 0.5, colors.black),
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f4a261')),

@@ -157,16 +157,29 @@ class StudentSignUpForm(forms.Form):
 class GradeEntryForm(forms.ModelForm):
     class Meta:
         model = Grade
-        fields = ['student', 'subject', 'marks', 'term', 'remarks']
+        fields = [
+            'student', 'subject',
+            'homework', 'class_work', 'project', 'first_test', 'midterm_test', 'exam',
+            'term', 'remarks'
+        ]
         widgets = {
             'remarks': forms.Textarea(attrs={'rows': 3}),
         }
 
-    def clean_marks(self):
-        marks = self.cleaned_data.get('marks')
-        if marks is None or marks < 0 or marks > 100:
-            raise ValidationError('Marks must be between 0 and 100.')
-        return marks
+    def clean(self):
+        cleaned = super().clean()
+        hw = cleaned.get('homework') or 0
+        cw = cleaned.get('class_work') or 0
+        proj = cleaned.get('project') or 0
+        t1 = cleaned.get('first_test') or 0
+        mid = cleaned.get('midterm_test') or 0
+        exam = cleaned.get('exam') or 0
+
+        total = hw + cw + proj + t1 + mid + exam
+        if total < 0 or total > 100:
+            raise ValidationError('Total of components must be between 0 and 100.')
+
+        return cleaned
 
 
 class BehavioralGradeEntryForm(forms.ModelForm):

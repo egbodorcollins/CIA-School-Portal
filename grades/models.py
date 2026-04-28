@@ -9,6 +9,7 @@ TERM_CHOICES = [
     ('first_term', 'First Term'),
     ('second_term', 'Second Term'),
     ('third_term', 'Third Term'),
+    ('session', 'Session Average'),
 ]
 
 
@@ -93,16 +94,47 @@ class Grade(models.Model):
     
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='grades')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='grades')
+
+    # Component breakdown (weights: HW=5, C.W.=10, PROJ=5, 1st TEST=10, MID=10, EXAM=60)
+    homework = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+        default=0,
+        help_text="Home work (max 5)"
+    )
+    class_work = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(10)],
+        default=0,
+        help_text="Class work (max 10)"
+    )
+    project = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+        default=0,
+        help_text="Project (max 5)"
+    )
+    first_test = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(10)],
+        default=0,
+        help_text="1st test (max 10)"
+    )
+    midterm_test = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(10)],
+        default=0,
+        help_text="Mid-term test (max 10)"
+    )
+    exam = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(60)],
+        default=0,
+        help_text="Exams (max 60)"
+    )
+
+    # Total marks (computed from components)
     marks = models.FloatField(
         validators=[MinValueValidator(0), MaxValueValidator(100)],
-        help_text="Marks out of 100"
+        default=0,
+        help_text="Total marks out of 100",
+        editable=False,
     )
     letter_grade = models.CharField(max_length=2, choices=GRADE_CHOICES)
-    TERM_CHOICES = [
-        ('first_term', 'First Term'),
-        ('second_term', 'Second Term'),
-        ('third_term', 'Third Term'),
-    ]
     term = models.CharField(
         max_length=20,
         choices=TERM_CHOICES,
@@ -129,7 +161,19 @@ class Grade(models.Model):
         return f"{self.student} - {self.subject} ({self.term}): {self.letter_grade}"
     
     def save(self, *args, **kwargs):
-        """Automatically assign letter grade based on marks"""
+        """Compute total from components, then assign letter grade."""
+        total = (
+            (self.homework or 0) +
+            (self.class_work or 0) +
+            (self.project or 0) +
+            (self.first_test or 0) +
+            (self.midterm_test or 0) +
+            (self.exam or 0)
+        )
+        # Clamp to [0, 100]
+        total = max(0, min(100, total))
+        self.marks = total
+
         if self.marks >= 90:
             self.letter_grade = 'A'
         elif self.marks >= 80:
@@ -142,6 +186,7 @@ class Grade(models.Model):
             self.letter_grade = 'E'
         else:
             self.letter_grade = 'F'
+
         super().save(*args, **kwargs)
 
 

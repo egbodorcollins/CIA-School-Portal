@@ -21,12 +21,7 @@
                     {{ form.last_name }}
                     {% for error in form.last_name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
-                <div class="field-row">
-                    {{ form.class_name.label_tag }}
-                    {{ form.class_name }}
-                    {% if form.class_name.help_text %}<small class="help-text">{{ form.class_name.help_text }}</small>{% endif %}
-                    {% for error in form.class_name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
-                </div>
+              
                 <div class="field-row">
                     {{ form.nationality.label_tag }}
                     {{ form.nationality }}
