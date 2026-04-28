@@ -37,7 +37,7 @@ def home(request):
 @class_teacher_or_admin_required
 def register_student(request):
     if request.method == 'POST':
-        form = StudentSignUpForm(request.POST)
+        form = StudentSignUpForm(request.POST, user=request.user)
         if form.is_valid():
             with transaction.atomic():
                 user = form.save()
@@ -47,7 +47,7 @@ def register_student(request):
             )
             return redirect('teacher_dashboard')
     else:
-        form = StudentSignUpForm()
+        form = StudentSignUpForm(user=request.user)
 
     return render(request, 'grades/register_student.html', {
         'form': form,
@@ -131,7 +131,7 @@ def teacher_dashboard(request):
     else:
         students = Student.objects.none()
 
-    form = StudentSignUpForm()
+    form = StudentSignUpForm(user=request.user)
     return render(request, 'grades/teacher_dashboard.html', {
         'students': students,
         'form': form,

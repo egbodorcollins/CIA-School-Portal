@@ -97,7 +97,21 @@ class StudentSignUpForm(forms.Form):
     sport_house = forms.CharField(max_length=50, required=False)
     date_of_birth = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date'}))
 
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        # If a Class Teacher is logged in, hide the class field and pre-fill it
+        if self.user and hasattr(self.user, 'profile'):
+            profile = self.user.profile
+            if profile.role == Profile.ROLE_CLASS_TEACHER:
+                self.fields['class_name'].widget = forms.HiddenInput()
+                self.fields['class_name'].initial = profile.assigned_class
+                self.fields['class_name'].required = False
+
     def clean_class_name(self):
+        if self.user and hasattr(self.user, 'profile') and self.user.profile.role == Profile.ROLE_CLASS_TEACHER:
+            return self.user.profile.assigned_class
+
         class_name = self.cleaned_data.get('class_name', '').strip()
         if not get_class_code(class_name):
             raise ValidationError('Please choose a supported class name.')
