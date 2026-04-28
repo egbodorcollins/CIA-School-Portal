@@ -11,6 +11,13 @@
                 {% for field in form.hidden_fields %}
                     {{ field }}
                 {% endfor %}
+
+                {% if user_profile and user_profile.role == 'class_teacher' and user_profile.assigned_class %}
+                    <div class="field-row">
+                        <label>Class</label>
+                        <div>{{ user_profile.assigned_class }}</div>
+                    </div>
+                {% endif %}
                 <div class="field-row">
                     {{ form.first_name.label_tag }}
                     {{ form.first_name }}
@@ -20,8 +27,15 @@
                     {{ form.last_name.label_tag }}
                     {{ form.last_name }}
                     {% for error in form.last_name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>              
+                {% if not (user_profile and user_profile.role == 'class_teacher' and user_profile.assigned_class) %}
+                <div class="field-row">
+                    {{ form.class_name.label_tag }}
+                    {{ form.class_name }}
+                    {% if form.class_name.help_text %}<small class="help-text">{{ form.class_name.help_text }}</small>{% endif %}
+                    {% for error in form.class_name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
-              
+                {% endif %}
                 <div class="field-row">
                     {{ form.nationality.label_tag }}
                     {{ form.nationality }}
@@ -49,6 +63,7 @@
                 </div>
                 <button type="submit" class="button button-primary">Register Student</button>
                 <a class="button button-secondary" href="{% url 'teacher_dashboard' %}">Back to Dashboard</a>
+                <button type="button" class="button button-secondary" onclick="history.back();">Go Back</button>
             </form>
         </div>
     </div>

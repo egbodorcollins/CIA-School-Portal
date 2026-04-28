@@ -43,6 +43,7 @@
                     <span class="nav-toggle-bars" aria-hidden="true"></span>
                     <span class="nav-toggle-label">Menu</span>
                 </button>
+                <a class="button button-primary header-home" href="{% url 'home' %}" style="margin-left:8px;">Home</a>
                 {% if user.is_authenticated %}
                     <div class="account-menu">
                         <button class="account-toggle" type="button" aria-controls="account-dropdown" aria-haspopup="menu" aria-expanded="false" aria-label="Open profile menu for {{ portal_user_display_name }}">

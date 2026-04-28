@@ -37,21 +37,39 @@ def home(request):
 @login_required
 @class_teacher_or_admin_required
 def register_student(request):
+    profile = getattr(request.user, 'profile', None)
+
     if request.method == 'POST':
         form = StudentSignUpForm(request.POST, user=request.user)
         if form.is_valid():
-            with transaction.atomic():
-                user = form.save()
-            messages.success(
-                request,
-                f'Student profile created successfully. Login ID: {user.username}. Password: CIA@123456.'
-            )
-            return redirect('teacher_dashboard')
+            # If the current user is a class teacher, ensure they can only register
+            # students for their assigned class.
+            if profile and profile.role == Profile.ROLE_CLASS_TEACHER:
+                chosen_class = form.cleaned_data.get('class_name')
+                if chosen_class != profile.assigned_class:
+                    form.add_error('class_name', 'You may only register students for your assigned class.')
+                else:
+                    with transaction.atomic():
+                        new_user = form.save()
+                    messages.success(
+                        request,
+                        f'Student profile created successfully. Login ID: {new_user.username}. Password: CIA@123456.'
+                    )
+                    return redirect('teacher_dashboard')
+            else:
+                with transaction.atomic():
+                    new_user = form.save()
+                messages.success(
+                    request,
+                    f'Student profile created successfully. Login ID: {new_user.username}. Password: CIA@123456.'
+                )
+                return redirect('teacher_dashboard')
     else:
         form = StudentSignUpForm(user=request.user)
 
     return render(request, 'grades/register_student.html', {
         'form': form,
+        'user_profile': profile,
     })
 
 
