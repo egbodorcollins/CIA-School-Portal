@@ -29,15 +29,17 @@
                 <a href="{% url 'home' %}">Home</a>
                 <a href="#contact">Contact Us</a>
                 {% if user.is_authenticated %}
-                    {% with profile=user.profile %}
-                        {% if profile.role == 'class_teacher' or profile.role == 'subject_teacher' %}
+                    {% if portal_user_profile %}
+                        {% if portal_user_profile.role == 'class_teacher' or portal_user_profile.role == 'subject_teacher' %}
                             <a href="{% url 'teacher_dashboard' %}">Teacher Dashboard</a>
-                        {% elif profile.role == 'admin' %}
+                        {% elif portal_user_profile.role == 'admin' %}
                             <a href="{% url 'admin:index' %}">Admin Dashboard</a>
                         {% else %}
                             <a href="{% url 'student_dashboard' %}">Student Dashboard</a>
                         {% endif %}
-                    {% endwith %}
+                    {% else %}
+                        <a href="{% url 'student_dashboard' %}">Student Dashboard</a>
+                    {% endif %}
                 {% else %}
                     <a href="{% url 'login' %}">Login</a>
                 {% endif %}

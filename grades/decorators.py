@@ -6,6 +6,9 @@ def _has_role(user, roles):
         return False
     if user.is_superuser:
         return True
+    # Treat Django staff users as privileged (allow access to teacher/admin views)
+    if getattr(user, 'is_staff', False):
+        return True
     profile = getattr(user, 'profile', None)
     if profile is None:
         try:

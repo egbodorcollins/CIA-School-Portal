@@ -28,7 +28,7 @@
                     {{ form.last_name }}
                     {% for error in form.last_name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>              
-                {% if not (user_profile and user_profile.role == 'class_teacher' and user_profile.assigned_class) %}
+                {% if not user_profile or user_profile.role != 'class_teacher' or not user_profile.assigned_class %}
                 <div class="field-row">
                     {{ form.class_name.label_tag }}
                     {{ form.class_name }}

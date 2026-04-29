@@ -38,3 +38,8 @@ Traceback (most recent call last):
 django.core.exceptions.DisallowedHost: Invalid HTTP_HOST header: 'testserver'. You may need to add 'testserver' to ALLOWED_HOSTS.
 "GET /register/student/ HTTP/1.1" 500 59
 "GET /register/student/ HTTP/1.1" 500 59
+"GET /register/student/ HTTP/1.1" 500 59
+"GET /register/student/ HTTP/1.1" 500 59
+"GET /register/student/ HTTP/1.1" 500 59
+"GET /register/student/ HTTP/1.1" 500 59
+"GET /register/student/ HTTP/1.1" 500 59
