@@ -212,7 +212,7 @@ class BehavioralGrade(models.Model):
     
     # Behavioral traits graded A-F
     punctuality = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
-    relationship_with_staff = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
+    relationship_with_staff = models.CharField(verbose_name='Relationship with Staff', max_length=1, choices=BEHAVIORAL_GRADES, default='C')
     politeness = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
     neatness = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
     co_operation = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
@@ -222,7 +222,7 @@ class BehavioralGrade(models.Model):
     relationship_with_peers = models.CharField(max_length=1, choices=BEHAVIORAL_GRADES, default='C')
     
     # Number of times present (numeric field)
-    times_present = models.PositiveIntegerField(default=0, help_text="Number of times present during the term")
+    times_present = models.PositiveIntegerField(verbose_name='Times Present', default=0, help_text="Number of times present during the term")
     
     date_recorded = models.DateTimeField(auto_now_add=True)
     last_updated = models.DateTimeField(auto_now=True)
@@ -268,6 +268,38 @@ class Profile(models.Model):
 
     def __str__(self):
         return f'{self.user.username} ({self.get_role_display()})'
+
+
+class Activity(models.Model):
+    ACTION_GRADE_CREATED = 'grade_created'
+    ACTION_GRADE_UPDATED = 'grade_updated'
+    ACTION_BEHAVIORAL_CREATED = 'behavioral_created'
+    ACTION_BEHAVIORAL_UPDATED = 'behavioral_updated'
+    ACTION_STUDENT_REGISTERED = 'student_registered'
+    ACTION_TEACHER_REGISTERED = 'teacher_registered'
+
+    ACTION_CHOICES = [
+        (ACTION_GRADE_CREATED, 'Grade created'),
+        (ACTION_GRADE_UPDATED, 'Grade updated'),
+        (ACTION_BEHAVIORAL_CREATED, 'Behavioral created'),
+        (ACTION_BEHAVIORAL_UPDATED, 'Behavioral updated'),
+        (ACTION_STUDENT_REGISTERED, 'Student registered'),
+        (ACTION_TEACHER_REGISTERED, 'Teacher registered'),
+    ]
+
+    actor = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='activities')
+    action_type = models.CharField(max_length=50, choices=ACTION_CHOICES)
+    target_student = models.ForeignKey(Student, on_delete=models.SET_NULL, null=True, blank=True, related_name='activities')
+    target_subject = models.ForeignKey(Subject, on_delete=models.SET_NULL, null=True, blank=True, related_name='activities')
+    description = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        actor = self.actor.get_full_name() or (self.actor.username if self.actor else 'System')
+        return f"{actor} - {self.get_action_type_display()} ({self.created_at:%Y-%m-%d %H:%M})"
 
 
 @receiver(post_save, sender=User)
