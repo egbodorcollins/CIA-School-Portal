@@ -7,13 +7,69 @@
         <div class="social-feeds">
             <div class="social-feed">
                 <h4>Facebook</h4>
-                <div class="fb-page" data-href="https://web.facebook.com/people/Corinasia-International-Academy-Abuja/100085381970246/" data-tabs="timeline" data-width="400" data-height="400" data-small-header="false" data-adapt-container-width="true" data-hide-cover="false" data-show-facepile="true"><blockquote cite="https://web.facebook.com/people/Corinasia-International-Academy-Abuja/100085381970246/" class="fb-xfbml-parse-ignore"><a href="https://web.facebook.com/people/Corinasia-International-Academy-Abuja/100085381970246/">Corinasia International Academy Abuja</a></blockquote></div>
+                <div class="fb-embed">
+                    <iframe src="https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2F100085381970246&tabs=timeline&width=400&height=400&small_header=false&adapt_container_width=true&hide_cover=false&show_facepile=true" width="400" height="400" style="border:none;overflow:hidden" scrolling="no" frameborder="0" allowfullscreen="true" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"></iframe>
+                </div>
             </div>
             <div class="social-feed">
                 <h4>Instagram</h4>
                 <blockquote class="instagram-media" data-instgrm-permalink="https://www.instagram.com/corinasia_intl_acad/" data-instgrm-version="14" style="max-width:400px; width:100%;"><a href="https://www.instagram.com/corinasia_intl_acad/" target="_blank">View this post on Instagram</a></blockquote>
             </div>
         </div>
+    </div>
+    <br>
+</div>
+ 
+<div class="recent-changes">
+    <div class="social-card">
+        <h3>Recent Changes</h3>
+        {% if recent_activities %}
+            <ul class="recent-activities">
+                {% for act in recent_activities %}
+                    <li class="recent-activity-item">
+                        <div>
+                            <strong>
+                                {% if act.actor %}
+                                    {% if act.actor.get_full_name %}
+                                        {{ act.actor.get_full_name }}
+                                    {% else %}
+                                        {{ act.actor.username }}
+                                    {% endif %}
+                                {% else %}
+                                    System
+                                {% endif %}
+                            </strong>
+                            &nbsp;
+                            {% if act.action_type == 'grade_created' %}
+                                created a grade
+                            {% elif act.action_type == 'grade_updated' %}
+                                updated a grade
+                            {% elif act.action_type == 'behavioral_created' %}
+                                created a behavioral assessment
+                            {% elif act.action_type == 'behavioral_updated' %}
+                                updated a behavioral assessment
+                            {% elif act.action_type == 'student_registered' %}
+                                registered a student
+                            {% elif act.action_type == 'teacher_registered' %}
+                                created a staff account
+                            {% else %}
+                                made a change
+                            {% endif %}
+                            {% if act.target_subject %} in <em>{{ act.target_subject.name }}</em>{% endif %}
+                            {% if act.target_student %} for <em>{{ act.target_student.first_name }} {{ act.target_student.last_name }}</em> ({% if act.target_student.student_id %}{{ act.target_student.student_id }}{% endif %}){% endif %}
+                        </div>
+                        <div class="activity-meta">
+                            <span class="muted">{{ act.created_at|date:'M j, Y H:i' }}</span>
+                        </div>
+                        {% if act.description %}
+                            <div class="small">{{ act.description }}</div>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div class="empty-state">No recent changes.</div>
+        {% endif %}
     </div>
 </div>
 <br>
