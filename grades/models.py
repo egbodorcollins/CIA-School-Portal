@@ -307,7 +307,4 @@ def create_or_update_user_profile(sender, instance, created, **kwargs):
     if kwargs.get('raw', False):
         return
 
-    # Prevent duplicate profile creation
-    if not Profile.objects.filter(user=instance).exists():
-        Profile.objects.create(user=instance)
-
+    Profile.objects.get_or_create(user=instance)

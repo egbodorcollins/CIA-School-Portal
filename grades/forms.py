@@ -148,7 +148,6 @@ class StudentSignUpForm(forms.Form):
             student.save()
             
             # The signal creates the profile, we just need to update it
-            profile = user.profile
             profile, _ = Profile.objects.get_or_create(user=user)
             profile.role = Profile.ROLE_STUDENT
             profile.save()
@@ -252,7 +251,6 @@ class TeacherCreationForm(forms.Form):
         if commit:
             user.save()
             # Update the profile created by the signal
-            profile = user.profile
             profile, _ = Profile.objects.get_or_create(user=user)
             profile.role = self.cleaned_data.get('role')
             profile.assigned_class = self.cleaned_data.get('assigned_class') or ''
