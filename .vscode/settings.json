@@ -12,7 +12,15 @@
             "approve": true,
             "matchCommandLine": true
         },
-        "&": true
+        "&": true,
+        "/^python manage\\.py test -v 2$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^python manage\\.py migrate --noinput$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
     },
     "python.testing.unittestArgs": [
         "-v",
