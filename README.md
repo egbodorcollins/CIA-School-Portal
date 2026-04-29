@@ -50,31 +50,6 @@ Access the portal at: `http://127.0.0.1:8000/admin`
   python manage.py changepassword admin
   ```
 
-## User Roles & Permissions
-
-- **Admin**: Full system access, manages terms, and creates teacher accounts.
-- **Class Teacher**: Assigned to a specific class (e.g., Basic 1). Can register students for that class and enter both Academic and Behavioral scores.
-- **Subject Teacher**: Assigned to specific subjects. Can only enter academic scores for students in those subjects.
-- **Student**: View-only access to personal grades, behavioral assessments, and PDF report card downloads.
-
-## Academic Grading System
-
-Grades are calculated based on a 100-point weighted system:
-- **Homework**: 5%
-- **Class Work**: 10%
-- **Project**: 5%
-- **1st Test**: 10%
-- **Mid-term Test**: 10%
-- **Exam**: 60%
-
-**Grading Scale:**
-- **A**: 90-100 (Excellent)
-- **B**: 80-89 (Very Good)
-- **C**: 70-79 (Good)
-- **D**: 60-69 (Average)
-- **E**: 50-59 (Pass)
-- **F**: Below 50 (Fail)
-
 ## Database Models
 
 ### Student
@@ -86,20 +61,12 @@ Grades are calculated based on a 100-point weighted system:
 - `sport_house`: Sport house assignment
 - `date_of_birth`: Birth date
 - `enrollment_date`: Date of enrollment
-- `class_name`: Assigned academic level
-- `subjects`: Many-to-Many relationship with Subject (auto-enrolled upon registration)
-- Personal details: Nationality, State of Origin, Club/Society, Sport House, DOB.
 
 ### Subject
 - `code`: Course code (e.g., "CS101")
 - `name`: Course name
 - `description`: Course description
 - `credit_hours`: Credit hours for the course
-### Activity
-- `actor`: The user who performed the action
-- `action_type`: Type of action (e.g., Grade Created, Student Registered)
-- `target`: The student or subject affected
-- `description`: Detailed log message
 
 ### Grade
 - `student`: Foreign key to Student
