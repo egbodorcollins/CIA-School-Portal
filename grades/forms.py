@@ -2,7 +2,8 @@ from django import forms
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.utils import timezone
-from .models import Student, Subject, Grade, BehavioralGrade, TermSetting
+from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile
+from .subject_map import STANDARD_SUBJECTS
 
 
 AUTO_STUDENT_PASSWORD = 'CIA@123456'
@@ -97,7 +98,21 @@ class StudentSignUpForm(forms.Form):
     sport_house = forms.CharField(max_length=50, required=False)
     date_of_birth = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date'}))
 
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        # If a Class Teacher is logged in, hide the class field and pre-fill it
+        if self.user and hasattr(self.user, 'profile'):
+            profile = self.user.profile
+            if profile.role == Profile.ROLE_CLASS_TEACHER:
+                self.fields['class_name'].widget = forms.HiddenInput()
+                self.fields['class_name'].initial = profile.assigned_class
+                self.fields['class_name'].required = False
+
     def clean_class_name(self):
+        if self.user and hasattr(self.user, 'profile') and self.user.profile.role == Profile.ROLE_CLASS_TEACHER:
+            return self.user.profile.assigned_class
+
         class_name = self.cleaned_data.get('class_name', '').strip()
         if not get_class_code(class_name):
             raise ValidationError('Please choose a supported class name.')
@@ -131,6 +146,30 @@ class StudentSignUpForm(forms.Form):
         if commit:
             user.save()
             student.save()
+            # Auto-enroll the student into standard subjects for their class for the active term
+            try:
+                class_code = get_class_code(self.cleaned_data['class_name'])
+                term_map = {
+                    'first_term': '1',
+                    'second_term': '2',
+                    'third_term': '3',
+                }
+                current_term = TermSetting.get_current_term()
+                term_digit = term_map.get(current_term, '1')
+                if class_code and class_code in STANDARD_SUBJECTS:
+                    abbrs = [abbr for abbr, _ in STANDARD_SUBJECTS.get(class_code, [])]
+                    codes = [f"{abbr} {class_code}{term_digit}" for abbr in abbrs]
+                    subjects_qs = Subject.objects.filter(code__in=codes)
+                    if subjects_qs.exists():
+                        student.subjects.set(subjects_qs)
+            except Exception:
+                # non-fatal: if auto-enroll fails, continue without blocking registration
+                pass
+            try:
+                Profile.objects.get_or_create(user=user, defaults={'role': Profile.ROLE_STUDENT})
+            except Exception:
+                # avoid breaking student creation if profile cannot be created for any reason
+                pass
 
         return user
 
@@ -138,16 +177,29 @@ class StudentSignUpForm(forms.Form):
 class GradeEntryForm(forms.ModelForm):
     class Meta:
         model = Grade
-        fields = ['student', 'subject', 'marks', 'term', 'remarks']
+        fields = [
+            'student', 'subject',
+            'homework', 'class_work', 'project', 'first_test', 'midterm_test', 'exam',
+            'term', 'remarks'
+        ]
         widgets = {
             'remarks': forms.Textarea(attrs={'rows': 3}),
         }
 
-    def clean_marks(self):
-        marks = self.cleaned_data.get('marks')
-        if marks is None or marks < 0 or marks > 100:
-            raise ValidationError('Marks must be between 0 and 100.')
-        return marks
+    def clean(self):
+        cleaned = super().clean()
+        hw = cleaned.get('homework') or 0
+        cw = cleaned.get('class_work') or 0
+        proj = cleaned.get('project') or 0
+        t1 = cleaned.get('first_test') or 0
+        mid = cleaned.get('midterm_test') or 0
+        exam = cleaned.get('exam') or 0
+
+        total = hw + cw + proj + t1 + mid + exam
+        if total < 0 or total > 100:
+            raise ValidationError('Total of components must be between 0 and 100.')
+
+        return cleaned
 
 
 class BehavioralGradeEntryForm(forms.ModelForm):
@@ -173,3 +225,39 @@ class TermSettingForm(forms.ModelForm):
     class Meta:
         model = TermSetting
         fields = ['current_term']
+
+
+class TeacherCreationForm(forms.Form):
+    username = forms.CharField(max_length=150, required=True, help_text="Login username for the teacher")
+    first_name = forms.CharField(max_length=150, required=False)
+    last_name = forms.CharField(max_length=150, required=False)
+    email = forms.EmailField(required=False)
+    role = forms.ChoiceField(choices=Profile.ROLE_CHOICES, required=True)
+    assigned_class = forms.ChoiceField(choices=[('', '---------')] + CLASS_CHOICES, required=False)
+    assigned_subjects = forms.ModelMultipleChoiceField(queryset=Subject.objects.all(), required=False, widget=forms.SelectMultiple)
+    password = forms.CharField(required=False, widget=forms.PasswordInput, help_text='Optional initial password; defaults to the portal default if left blank')
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if username and User.objects.filter(username=username).exists():
+            raise ValidationError('A user with this username already exists.')
+        return username
+
+    def save(self, commit=True):
+        username = self.cleaned_data.get('username')
+        user = User(username=username)
+        user.first_name = self.cleaned_data.get('first_name', '')
+        user.last_name = self.cleaned_data.get('last_name', '')
+        user.email = self.cleaned_data.get('email', '')
+        password = self.cleaned_data.get('password') or AUTO_STUDENT_PASSWORD
+        user.set_password(password)
+        if commit:
+            user.save()
+            profile, _ = Profile.objects.get_or_create(user=user)
+            profile.role = self.cleaned_data.get('role')
+            profile.assigned_class = self.cleaned_data.get('assigned_class') or ''
+            profile.save()
+            subjects = self.cleaned_data.get('assigned_subjects')
+            if subjects:
+                profile.assigned_subjects.set(subjects)
+        return user

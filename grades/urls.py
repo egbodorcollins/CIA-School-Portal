@@ -7,6 +7,7 @@ urlpatterns = [
     path('login/', views.RateLimitedLoginView.as_view(), name='login'),
     path('logout/', views.logout_view, name='logout'),
     path('register/student/', views.register_student, name='register_student'),
+    path('register/teacher/', views.register_teacher, name='register_teacher'),
     path(
         'password/change/',
         auth_views.PasswordChangeView.as_view(

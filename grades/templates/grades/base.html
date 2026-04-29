@@ -29,8 +29,14 @@
                 <a href="{% url 'home' %}">Home</a>
                 <a href="#contact">Contact Us</a>
                 {% if user.is_authenticated %}
-                    {% if user.is_staff %}
-                        <a href="{% url 'teacher_dashboard' %}">Teacher Dashboard</a>
+                    {% if portal_user_profile %}
+                        {% if portal_user_profile.role == 'class_teacher' or portal_user_profile.role == 'subject_teacher' %}
+                            <a href="{% url 'teacher_dashboard' %}">Teacher Dashboard</a>
+                        {% elif portal_user_profile.role == 'admin' %}
+                            <a href="{% url 'admin:index' %}">Admin Dashboard</a>
+                        {% else %}
+                            <a href="{% url 'student_dashboard' %}">Student Dashboard</a>
+                        {% endif %}
                     {% else %}
                         <a href="{% url 'student_dashboard' %}">Student Dashboard</a>
                     {% endif %}
@@ -43,6 +49,7 @@
                     <span class="nav-toggle-bars" aria-hidden="true"></span>
                     <span class="nav-toggle-label">Menu</span>
                 </button>
+                <a class="button button-primary header-home" href="{% url 'home' %}" style="margin-left:8px;">Home</a>
                 {% if user.is_authenticated %}
                     <div class="account-menu">
                         <button class="account-toggle" type="button" aria-controls="account-dropdown" aria-haspopup="menu" aria-expanded="false" aria-label="Open profile menu for {{ portal_user_display_name }}">

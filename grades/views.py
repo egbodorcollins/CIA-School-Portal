@@ -5,7 +5,8 @@ from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from django.db import transaction
 from django.contrib.auth import logout
-from django.contrib.auth.decorators import login_required, user_passes_test
+from django.contrib.auth.decorators import login_required
+from .decorators import class_teacher_or_admin_required, teacher_or_admin_required, admin_required
 from django.contrib import messages
 from django.contrib.auth.views import LoginView
 from django.utils import timezone
@@ -15,8 +16,9 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from .models import Student, Grade, BehavioralGrade, TermSetting
-from .forms import StudentSignUpForm, GradeEntryForm, BehavioralGradeEntryForm
+from .models import Student, Grade, BehavioralGrade, TermSetting, Profile
+from .forms import StudentSignUpForm, GradeEntryForm, BehavioralGradeEntryForm, TeacherCreationForm, get_class_code
+from django.forms import HiddenInput
 
 
 class RateLimitedLoginView(LoginView):
@@ -33,22 +35,93 @@ def home(request):
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
+@class_teacher_or_admin_required
 def register_student(request):
+    profile = getattr(request.user, 'profile', None)
+
     if request.method == 'POST':
-        form = StudentSignUpForm(request.POST)
+        form = StudentSignUpForm(request.POST, user=request.user)
         if form.is_valid():
-            with transaction.atomic():
-                user = form.save()
-            messages.success(
-                request,
-                f'Student profile created successfully. Login ID: {user.username}. Password: CIA@123456.'
-            )
-            return redirect('teacher_dashboard')
+            # If the current user is a class teacher, ensure they can only register
+            # students for their assigned class.
+            if profile and profile.role == Profile.ROLE_CLASS_TEACHER:
+                chosen_class = form.cleaned_data.get('class_name')
+                if chosen_class != profile.assigned_class:
+                    form.add_error('class_name', 'You may only register students for your assigned class.')
+                else:
+                    with transaction.atomic():
+                        new_user = form.save()
+                    messages.success(
+                        request,
+                        f'Student profile created successfully. Login ID: {new_user.username}. Password: CIA@123456.'
+                    )
+                    return redirect('teacher_dashboard')
+            else:
+                with transaction.atomic():
+                    new_user = form.save()
+                messages.success(
+                    request,
+                    f'Student profile created successfully. Login ID: {new_user.username}. Password: CIA@123456.'
+                )
+                return redirect('teacher_dashboard')
     else:
-        form = StudentSignUpForm()
+        form = StudentSignUpForm(user=request.user)
 
     return render(request, 'grades/register_student.html', {
+        'form': form,
+        'user_profile': profile,
+    })
+
+
+@login_required
+@class_teacher_or_admin_required
+def register_teacher(request):
+    profile = getattr(request.user, 'profile', None)
+    if profile is None:
+        messages.error(request, 'Unable to determine your role. Contact admin.')
+        return redirect('teacher_dashboard')
+
+    # Admins can create admins, class teachers and subject teachers.
+    # Class teachers can only create subject teachers (and assign them subjects).
+    if profile.role == Profile.ROLE_ADMIN:
+        allowed_roles = [r[0] for r in Profile.ROLE_CHOICES if r[0] != Profile.ROLE_STUDENT]
+    elif profile.role == Profile.ROLE_CLASS_TEACHER:
+        allowed_roles = [Profile.ROLE_SUBJECT_TEACHER]
+    else:
+        messages.error(request, 'You do not have permission to create teacher accounts.')
+        return redirect('teacher_dashboard')
+
+    if request.method == 'POST':
+        form = TeacherCreationForm(request.POST)
+        # limit role choices to allowed_roles
+        form.fields['role'].choices = [c for c in Profile.ROLE_CHOICES if c[0] in allowed_roles]
+        if profile.role == Profile.ROLE_CLASS_TEACHER:
+            form.fields['assigned_class'].initial = profile.assigned_class
+
+        if form.is_valid():
+            chosen_role = form.cleaned_data.get('role')
+            if chosen_role not in allowed_roles:
+                messages.error(request, 'Invalid role selected.')
+                return redirect('register_teacher')
+            user = form.save()
+            
+            # Ensure profile permissions and assignments are strictly enforced
+            user_profile = user.profile
+            user_profile.role = chosen_role
+            if profile.role == Profile.ROLE_CLASS_TEACHER:
+                # Class teachers can only create accounts for their own class
+                user_profile.assigned_class = profile.assigned_class
+            user_profile.save()
+
+            messages.success(request, f'{dict(Profile.ROLE_CHOICES).get(chosen_role, chosen_role)} account created for {user.username}.')
+            return redirect('teacher_dashboard')
+    else:
+        form = TeacherCreationForm()
+        form.fields['role'].choices = [c for c in Profile.ROLE_CHOICES if c[0] in allowed_roles]
+        if profile.role == Profile.ROLE_CLASS_TEACHER:
+            form.fields['assigned_class'].initial = profile.assigned_class
+
+    return render(request, 'grades/register_teacher.html', {
         'form': form,
     })
 
@@ -62,12 +135,22 @@ def logout_view(request):
 
 @login_required
 def teacher_dashboard(request):
-    if not request.user.is_staff:
+    profile = getattr(request.user, 'profile', None)
+    if profile is None or profile.role == 'student':
         messages.warning(request, 'Teacher access only. Please sign in with a teacher account.')
         return redirect('student_dashboard')
 
-    students = Student.objects.all().order_by('last_name')
-    form = StudentSignUpForm()
+    if profile.role == 'admin':
+        students = Student.objects.all().order_by('last_name')
+    elif profile.role == 'class_teacher':
+        students = Student.objects.filter(class_name=profile.assigned_class).order_by('last_name')
+    elif profile.role == 'subject_teacher':
+        assigned_subjects = profile.assigned_subjects.all()
+        students = Student.objects.filter(grades__subject__in=assigned_subjects).distinct().order_by('last_name')
+    else:
+        students = Student.objects.none()
+
+    form = StudentSignUpForm(user=request.user)
     return render(request, 'grades/teacher_dashboard.html', {
         'students': students,
         'form': form,
@@ -75,18 +158,49 @@ def teacher_dashboard(request):
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
+@admin_required
 def set_current_term(request):
     messages.info(request, 'Current academic term is managed in the Django admin dashboard.')
     return redirect('admin:grades_termsetting_changelist')
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
+@teacher_or_admin_required
 def enter_academic_scores(request):
     current_term = TermSetting.get_current_term()
+    profile = getattr(request.user, 'profile', None)
+
+    # Prepare students available for selection based on user's role
+    if profile and profile.role == Profile.ROLE_ADMIN:
+        students_for_select = Student.objects.all().order_by('last_name')
+    elif profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
+        students_for_select = Student.objects.filter(class_name=profile.assigned_class).order_by('last_name')
+    elif profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+        students_for_select = Student.objects.filter(subjects__in=profile.assigned_subjects.all()).distinct().order_by('last_name')
+    else:
+        students_for_select = Student.objects.none()
+
+    selected_student = None
+    sel_student_pk = request.GET.get('student')
+    if sel_student_pk:
+        try:
+            selected_student = students_for_select.get(pk=sel_student_pk)
+        except Exception:
+            selected_student = None
+
     if request.method == 'POST':
         form = GradeEntryForm(request.POST)
+
+        # Restrict student/subject querysets based on role
+        if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
+            form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
+        if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+            form.fields['subject'].queryset = profile.assigned_subjects.all()
+
+        # If a student was pre-selected, lock the student field
+        if selected_student:
+            form.fields['student'].queryset = Student.objects.filter(pk=selected_student.pk)
+
         if form.is_valid():
             data = form.cleaned_data
             Grade.objects.update_or_create(
@@ -94,29 +208,79 @@ def enter_academic_scores(request):
                 subject=data['subject'],
                 term=data['term'],
                 defaults={
-                    'marks': data['marks'],
-                    'remarks': data['remarks'],
+                    'homework': data.get('homework', 0),
+                    'class_work': data.get('class_work', 0),
+                    'project': data.get('project', 0),
+                    'first_test': data.get('first_test', 0),
+                    'midterm_test': data.get('midterm_test', 0),
+                    'exam': data.get('exam', 0),
+                    'remarks': data.get('remarks', ''),
                 }
             )
             messages.success(request, 'Academic score saved successfully.')
+            if selected_student:
+                return redirect(f"{request.path}?student={selected_student.pk}")
             return redirect('enter_academic_scores')
     else:
         form = GradeEntryForm(initial={'term': current_term})
+        if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
+            form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
+        if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+            form.fields['subject'].queryset = profile.assigned_subjects.all()
 
-    grades = Grade.objects.filter(term=current_term).select_related('student', 'subject').order_by('student__last_name', 'subject__name')
+        if selected_student:
+            # Lock and hide the student field
+            form.fields['student'].queryset = Student.objects.filter(pk=selected_student.pk)
+            form.fields['student'].initial = selected_student.pk
+            form.fields['student'].widget = HiddenInput()
+
+            # Restrict subjects to the student's enrolled subjects for the current term
+            try:
+                term_map = {'first_term': '1', 'second_term': '2', 'third_term': '3'}
+                term_digit = term_map.get(current_term, '1')
+                class_code = get_class_code(selected_student.class_name)
+                if class_code:
+                    subj_qs = selected_student.subjects.filter(code__endswith=f"{class_code}{term_digit}")
+                else:
+                    subj_qs = selected_student.subjects.all()
+
+                if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+                    subj_qs = subj_qs.filter(pk__in=profile.assigned_subjects.all())
+
+                form.fields['subject'].queryset = subj_qs
+            except Exception:
+                form.fields['subject'].queryset = selected_student.subjects.all()
+
+    # Show only selected student's grades when a student is selected
+    if selected_student:
+        grades = Grade.objects.filter(term=current_term, student=selected_student).select_related('student', 'subject').order_by('subject__name')
+    else:
+        grades = Grade.objects.filter(term=current_term).select_related('student', 'subject').order_by('student__last_name', 'subject__name')
+        if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
+            grades = grades.filter(student__class_name=profile.assigned_class)
+        if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+            grades = grades.filter(subject__in=profile.assigned_subjects.all())
+
     return render(request, 'grades/enter_academic_scores.html', {
         'form': form,
         'grades': grades,
         'current_term': current_term,
+        'students': students_for_select,
+        'selected_student': selected_student,
     })
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
+@class_teacher_or_admin_required
 def enter_behavioral_assessments(request):
     current_term = TermSetting.get_current_term()
+    profile = getattr(request.user, 'profile', None)
+
     if request.method == 'POST':
         form = BehavioralGradeEntryForm(request.POST)
+        if profile and profile.role == 'class_teacher' and profile.assigned_class:
+            form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
+
         if form.is_valid():
             data = form.cleaned_data
             BehavioralGrade.objects.update_or_create(
@@ -140,8 +304,13 @@ def enter_behavioral_assessments(request):
             return redirect('enter_behavioral_assessments')
     else:
         form = BehavioralGradeEntryForm(initial={'term': current_term})
+        if profile and profile.role == 'class_teacher' and profile.assigned_class:
+            form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
 
     reports = BehavioralGrade.objects.filter(term=current_term).select_related('student').order_by('student__last_name')
+    if profile and profile.role == 'class_teacher' and profile.assigned_class:
+        reports = reports.filter(student__class_name=profile.assigned_class)
+
     return render(request, 'grades/enter_behavioral_assessments.html', {
         'form': form,
         'reports': reports,
@@ -150,16 +319,21 @@ def enter_behavioral_assessments(request):
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
+@class_teacher_or_admin_required
 def manage_students(request):
-    students = Student.objects.all().order_by('last_name')
+    profile = getattr(request.user, 'profile', None)
+    if profile and profile.role == 'class_teacher' and profile.assigned_class:
+        students = Student.objects.filter(class_name=profile.assigned_class).order_by('last_name')
+    else:
+        students = Student.objects.all().order_by('last_name')
+
     return render(request, 'grades/manage_students.html', {
         'students': students,
     })
 
 
 @login_required
-@user_passes_test(lambda u: u.is_staff)
+@admin_required
 @require_POST
 def delete_student(request, student_id):
     student = Student.objects.filter(student_id=student_id).first()
@@ -173,7 +347,8 @@ def delete_student(request, student_id):
 
 @login_required
 def student_dashboard(request):
-    if request.user.is_staff:
+    profile = getattr(request.user, 'profile', None)
+    if profile and profile.role != 'student':
         return redirect('teacher_dashboard')
 
     student = None
@@ -257,23 +432,44 @@ def report_card_pdf(request):
         ('LINEBEFORE', (2, 0), (2, -1), 1, colors.black),
     ]))
 
-    assessment_data = [['SUBJECT', 'CLASS', 'PROJ', 'TEST', 'C.A', 'EXAMS', 'TOTAL', 'GRADE', 'POSITION']]
+    assessment_data = [['SUBJECT', 'HW', 'CW', 'PRJ', 'T1', 'MID', 'EXAM', 'TOTAL', 'GRADE', 'POSITION']]
+    hw_total = cw_total = proj_total = t1_total = mid_total = exam_total = 0
     for idx, grade in enumerate(selected_grades, start=1):
+        hw_total += getattr(grade, 'homework', 0) or 0
+        cw_total += getattr(grade, 'class_work', 0) or 0
+        proj_total += getattr(grade, 'project', 0) or 0
+        t1_total += getattr(grade, 'first_test', 0) or 0
+        mid_total += getattr(grade, 'midterm_test', 0) or 0
+        exam_total += getattr(grade, 'exam', 0) or 0
+
         assessment_data.append([
             grade.subject.name,
-            '15',
-            '5',
-            '20',
-            '40',
-            '20',
+            f'{grade.homework:.0f}',
+            f'{grade.class_work:.0f}',
+            f'{grade.project:.0f}',
+            f'{grade.first_test:.0f}',
+            f'{grade.midterm_test:.0f}',
+            f'{grade.exam:.0f}',
             f'{grade.marks:.0f}',
             grade.letter_grade,
             str(idx),
         ])
 
     total_marks = sum(g.marks for g in selected_grades)
-    assessment_data.append(['TOTAL', '180', '57', '226', '463', '20', f'{total_marks:.0f}', '', ''])
-    assessment_table = Table(assessment_data, colWidths=[120, 35, 35, 35, 35, 45, 40, 35, 35])
+    assessment_data.append([
+        'TOTAL',
+        f'{hw_total:.0f}',
+        f'{cw_total:.0f}',
+        f'{proj_total:.0f}',
+        f'{t1_total:.0f}',
+        f'{mid_total:.0f}',
+        f'{exam_total:.0f}',
+        f'{total_marks:.0f}',
+        '',
+        '',
+    ])
+
+    assessment_table = Table(assessment_data, colWidths=[120, 30, 30, 30, 30, 30, 40, 40, 35, 35])
     assessment_table.setStyle(TableStyle([
         ('GRID', (0, 0), (-1, -2), 0.5, colors.black),
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f4a261')),

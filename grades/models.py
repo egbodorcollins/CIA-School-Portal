@@ -1,11 +1,15 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from datetime import datetime
+from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 TERM_CHOICES = [
     ('first_term', 'First Term'),
     ('second_term', 'Second Term'),
     ('third_term', 'Third Term'),
+    ('session', 'Session Average'),
 ]
 
 
@@ -21,6 +25,7 @@ class Student(models.Model):
     sport_house = models.CharField(max_length=50, blank=True, null=True)
     date_of_birth = models.DateField(blank=True, null=True)
     enrollment_date = models.DateField(default=datetime.today)
+    subjects = models.ManyToManyField('Subject', blank=True, related_name='students', help_text='Subjects the student is enrolled in for the current term')
     
     class Meta:
         ordering = ['last_name', 'first_name']
@@ -90,16 +95,47 @@ class Grade(models.Model):
     
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='grades')
     subject = models.ForeignKey(Subject, on_delete=models.CASCADE, related_name='grades')
+
+    # Component breakdown (weights: HW=5, C.W.=10, PROJ=5, 1st TEST=10, MID=10, EXAM=60)
+    homework = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+        default=0,
+        help_text="Home work (max 5)"
+    )
+    class_work = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(10)],
+        default=0,
+        help_text="Class work (max 10)"
+    )
+    project = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(5)],
+        default=0,
+        help_text="Project (max 5)"
+    )
+    first_test = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(10)],
+        default=0,
+        help_text="1st test (max 10)"
+    )
+    midterm_test = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(10)],
+        default=0,
+        help_text="Mid-term test (max 10)"
+    )
+    exam = models.FloatField(
+        validators=[MinValueValidator(0), MaxValueValidator(60)],
+        default=0,
+        help_text="Exams (max 60)"
+    )
+
+    # Total marks (computed from components)
     marks = models.FloatField(
         validators=[MinValueValidator(0), MaxValueValidator(100)],
-        help_text="Marks out of 100"
+        default=0,
+        help_text="Total marks out of 100",
+        editable=False,
     )
     letter_grade = models.CharField(max_length=2, choices=GRADE_CHOICES)
-    TERM_CHOICES = [
-        ('first_term', 'First Term'),
-        ('second_term', 'Second Term'),
-        ('third_term', 'Third Term'),
-    ]
     term = models.CharField(
         max_length=20,
         choices=TERM_CHOICES,
@@ -126,7 +162,19 @@ class Grade(models.Model):
         return f"{self.student} - {self.subject} ({self.term}): {self.letter_grade}"
     
     def save(self, *args, **kwargs):
-        """Automatically assign letter grade based on marks"""
+        """Compute total from components, then assign letter grade."""
+        total = (
+            (self.homework or 0) +
+            (self.class_work or 0) +
+            (self.project or 0) +
+            (self.first_test or 0) +
+            (self.midterm_test or 0) +
+            (self.exam or 0)
+        )
+        # Clamp to [0, 100]
+        total = max(0, min(100, total))
+        self.marks = total
+
         if self.marks >= 90:
             self.letter_grade = 'A'
         elif self.marks >= 80:
@@ -139,6 +187,7 @@ class Grade(models.Model):
             self.letter_grade = 'E'
         else:
             self.letter_grade = 'F'
+
         super().save(*args, **kwargs)
 
 
@@ -191,3 +240,49 @@ class BehavioralGrade(models.Model):
     
     def __str__(self):
         return f"{self.student} - Behavioral Assessment ({self.term})"
+
+
+class Profile(models.Model):
+    ROLE_ADMIN = 'admin'
+    ROLE_CLASS_TEACHER = 'class_teacher'
+    ROLE_SUBJECT_TEACHER = 'subject_teacher'
+    ROLE_STUDENT = 'student'
+
+    ROLE_CHOICES = [
+        (ROLE_ADMIN, 'Admin'),
+        (ROLE_CLASS_TEACHER, 'Class Teacher'),
+        (ROLE_SUBJECT_TEACHER, 'Subject Teacher'),
+        (ROLE_STUDENT, 'Student'),
+    ]
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=ROLE_STUDENT)
+    assigned_class = models.CharField(max_length=50, blank=True, null=True, help_text="Class assigned to class teacher (e.g., Basic 1)")
+    assigned_subjects = models.ManyToManyField(Subject, blank=True, related_name='assigned_teachers')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'User Profile'
+        verbose_name_plural = 'User Profiles'
+
+    def __str__(self):
+        return f'{self.user.username} ({self.get_role_display()})'
+
+
+@receiver(post_save, sender=User)
+def create_or_update_user_profile(sender, instance, created, **kwargs):
+    if created:
+        try:
+            Profile.objects.create(user=instance)
+        except Exception:
+            pass
+    else:
+        # Ensure profile exists for existing users
+        try:
+            instance.profile.save()
+        except Exception:
+            try:
+                Profile.objects.get_or_create(user=instance)
+            except Exception:
+                pass

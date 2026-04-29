@@ -1,0 +1,57 @@
+{% extends 'grades/base.html' %}
+{% load static %}
+
+{% block title %}Register Teacher/Staff - CIA School Portal{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-md-7 col-lg-6">
+            <div class="card shadow border-0">
+                <div class="card-header bg-primary text-white text-center py-3">
+                    <h4 class="mb-0 fw-bold">Register New Teacher/Staff</h4>
+                </div>
+                <div class="card-body p-4">
+                    <div class="alert alert-warning border-0 small mb-4">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        Note: All new staff accounts are created with the default password: 
+                        <strong>CIA@123456</strong>. They should change this after their first login.
+                    </div>
+
+                    <form method="post" novalidate>
+                        {% csrf_token %}
+                        
+                        {% for field in form %}
+                        <div class="mb-3">
+                            <label for="{{ field.id_for_label }}" class="form-label small fw-bold text-uppercase">
+                                {{ field.label }}
+                            </label>
+                            {{ field }}
+                            {% if field.help_text %}
+                            <div class="form-text small text-muted">{{ field.help_text }}</div>
+                            {% endif %}
+                            {% if field.errors %}
+                            <div class="text-danger small mt-1">
+                                {% for error in field.errors %}
+                                    <div>{{ error }}</div>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="submit" class="btn btn-success btn-lg shadow-sm">
+                                <i class="fas fa-save me-2"></i>Create and Assign Account
+                            </button>
+                            <a href="{% url 'teacher_dashboard' %}" class="btn btn-outline-secondary">
+                                Cancel
+                            </a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
