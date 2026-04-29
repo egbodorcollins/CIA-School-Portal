@@ -130,13 +130,12 @@ def register_student(request):
 @class_teacher_or_admin_required
 def register_teacher(request):
     profile = getattr(request.user, 'profile', None)
+
     if profile is None:
         messages.error(request, 'Unable to determine your role. Contact admin.')
         return redirect('teacher_dashboard')
 
-    # Admins can create admins, class teachers and subject teachers.
-    # Class teachers can only create subject teachers (and assign them subjects).
-    if profile.role == Profile.ROLE_ADMIN:
+    if profile.role == Profile.ROLE_ADMIN or request.user.is_superuser:
         allowed_roles = [r[0] for r in Profile.ROLE_CHOICES if r[0] != Profile.ROLE_STUDENT]
     elif profile.role == Profile.ROLE_CLASS_TEACHER:
         allowed_roles = [Profile.ROLE_SUBJECT_TEACHER]
@@ -199,18 +198,10 @@ def logout_view(request):
 @login_required
 def teacher_dashboard(request):
     profile = getattr(request.user, 'profile', None)
-    # If there is no Profile object but the user is marked as staff/superuser,
-    # treat them as a teacher/admin for dashboard access. Create a Profile
-    # record if missing to make template/context usage consistent.
+
     if profile is None:
-        if request.user.is_superuser or getattr(request.user, 'is_staff', False):
-            try:
-                profile, _ = Profile.objects.get_or_create(user=request.user, defaults={'role': Profile.ROLE_ADMIN if request.user.is_superuser else Profile.ROLE_CLASS_TEACHER})
-            except Exception:
-                profile = None
-        else:
-            messages.warning(request, 'Teacher access only. Please sign in with a teacher account.')
-            return redirect('student_dashboard')
+        messages.warning(request, 'Teacher access only. Please sign in with a teacher account.')
+        return redirect('student_dashboard')
 
     if profile and profile.role == 'student':
         # If the user is marked as staff/superuser, treat them as a teacher

@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import IntegrityError, models
 from django.core.validators import MinValueValidator, MaxValueValidator
 from datetime import datetime
 from django.contrib.auth.models import User
@@ -304,13 +304,10 @@ class Activity(models.Model):
 
 @receiver(post_save, sender=User)
 def create_or_update_user_profile(sender, instance, created, **kwargs):
-    if created:
-        # Use get_or_create to be safe against race conditions
-        Profile.objects.get_or_create(user=instance)
-    else:
-        # Only save if the profile attribute is already loaded/exists
-        try:
-            if hasattr(instance, 'profile'):
-                instance.profile.save()
-        except Profile.DoesNotExist:
-            Profile.objects.create(user=instance)
+    if kwargs.get('raw', False):
+        return
+
+    # Prevent duplicate profile creation
+    if not Profile.objects.filter(user=instance).exists():
+        Profile.objects.create(user=instance)
+

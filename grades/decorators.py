@@ -10,13 +10,7 @@ def _has_role(user, roles):
     if getattr(user, 'is_staff', False):
         return True
     profile = getattr(user, 'profile', None)
-    if profile is None:
-        try:
-            from .models import Profile
-            profile, _ = Profile.objects.get_or_create(user=user)
-        except Exception:
-            return False
-    return profile.role in roles
+    return profile and profile.role in roles
 
 
 def roles_required(roles):
