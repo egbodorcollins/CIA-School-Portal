@@ -54,6 +54,8 @@ ALLOWED_HOSTS = config(
     default='localhost,127.0.0.1,testserver',
     cast=lambda v: [s.strip() for s in v.split(',') if s.strip()],
 )
+if 'testserver' not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append('testserver')
 
 
 # Application definition

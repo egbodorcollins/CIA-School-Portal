@@ -89,7 +89,8 @@ def register_student(request):
                             target_student=student_obj,
                             description=f"{request.user.get_full_name() or request.user.username} registered student {student_obj if student_obj else new_user.username}",
                         )
-                    except Exception:
+                    except Exception as e:
+                        print(f"Error logging student registration activity: {e}")
                         pass
                     messages.success(
                         request,
@@ -108,7 +109,8 @@ def register_student(request):
                         target_student=student_obj,
                         description=f"{request.user.get_full_name() or request.user.username} registered student {student_obj if student_obj else new_user.username}",
                     )
-                except Exception:
+                except Exception as e:
+                    print(f"Error logging student registration activity: {e}")
                     pass
                 messages.success(
                     request,
@@ -154,24 +156,24 @@ def register_teacher(request):
             if chosen_role not in allowed_roles:
                 messages.error(request, 'Invalid role selected.')
                 return redirect('register_teacher')
-            user = form.save()
             
-            # Ensure profile permissions and assignments are strictly enforced
-            user_profile = user.profile
-            user_profile.role = chosen_role
-            if profile.role == Profile.ROLE_CLASS_TEACHER:
-                # Class teachers can only create accounts for their own class
-                user_profile.assigned_class = profile.assigned_class
-            user_profile.save()
+            with transaction.atomic():
+                user = form.save()
+                
+                # Strict enforcement for Class Teachers
+                if profile.role == Profile.ROLE_CLASS_TEACHER:
+                    user.profile.assigned_class = profile.assigned_class
+                    user.profile.save()
 
             # Log teacher/admin creation
             try:
                 Activity.objects.create(
                     actor=request.user,
                     action_type=Activity.ACTION_TEACHER_REGISTERED,
-                    description=f"{request.user.get_full_name() or request.user.username} created account {user.username} with role {chosen_role}",
+                    description=f"{request.user.get_full_name() or request.user.username} created account {user.username} with role {dict(Profile.ROLE_CHOICES).get(chosen_role)}",
                 )
-            except Exception:
+            except Exception as e:
+                print(f"Error logging teacher registration activity: {e}")
                 pass
 
             messages.success(request, f'{dict(Profile.ROLE_CHOICES).get(chosen_role, chosen_role)} account created for {user.username}.')
