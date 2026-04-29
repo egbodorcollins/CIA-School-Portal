@@ -305,16 +305,12 @@ class Activity(models.Model):
 @receiver(post_save, sender=User)
 def create_or_update_user_profile(sender, instance, created, **kwargs):
     if created:
-        try:
-            Profile.objects.create(user=instance)
-        except Exception:
-            pass
+        # Use get_or_create to be safe against race conditions
+        Profile.objects.get_or_create(user=instance)
     else:
-        # Ensure profile exists for existing users
+        # Only save if the profile attribute is already loaded/exists
         try:
-            instance.profile.save()
-        except Exception:
-            try:
-                Profile.objects.get_or_create(user=instance)
-            except Exception:
-                pass
+            if hasattr(instance, 'profile'):
+                instance.profile.save()
+        except Profile.DoesNotExist:
+            Profile.objects.create(user=instance)
