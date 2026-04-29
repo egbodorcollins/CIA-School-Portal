@@ -376,19 +376,105 @@ body {
   color: var(--brand-red);
 }
 
+/* Recent changes */
+.recent-changes {
+  margin-top: 20px;
+}
+
+.recent-activities {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.recent-activity-item {
+  padding: 12px;
+  border-radius: 12px;
+  background: #fffaf7;
+  border: 1px solid rgba(240, 228, 222, 0.7);
+}
+
+.recent-activity-item .muted {
+  color: #6d4a40;
+  font-size: 0.85rem;
+}
+
+.recent-activity-item .small {
+  color: #6a5150;
+  margin-top: 6px;
+  font-size: 0.9rem;
+}
+
 .social-feeds {
   display: flex;
   gap: 20px;
   justify-content: space-around;
+  flex-wrap: wrap;
+  align-items: flex-start;
 }
 
 .social-feed {
-  flex: 1;
+  flex: 1 1 320px;
+  min-width: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .social-feed h4 {
   margin-bottom: 10px;
   color: var(--brand-red);
+}
+
+/* Make embeds responsive and constrained to the feed column */
+.fb-embed,
+blockquote.instagram-media {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+.fb-embed iframe,
+blockquote.instagram-media iframe {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: auto !important;
+  display: block;
+}
+
+/* Center headings within each feed */
+.social-feed h4 {
+  text-align: center;
+}
+
+/* Stack feeds vertically on narrow screens */
+@media (max-width: 860px) {
+  .social-feeds {
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .social-feed {
+    width: 100%;
+    max-width: 480px;
+  }
+
+  .social-card {
+    padding: 20px;
+  }
+
+  .fb-embed iframe {
+    height: 360px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .fb-embed iframe {
+    height: 320px !important;
+  }
 }
 
 .behavioral-report {

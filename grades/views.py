@@ -16,7 +16,8 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from .models import Student, Grade, BehavioralGrade, TermSetting, Profile
+from .models import Student, Grade, BehavioralGrade, TermSetting, Profile, Activity, Subject
+from django.db.models import Q
 from .forms import StudentSignUpForm, GradeEntryForm, BehavioralGradeEntryForm, TeacherCreationForm, get_class_code
 from django.forms import HiddenInput
 
@@ -31,7 +32,35 @@ class RateLimitedLoginView(LoginView):
 
 
 def home(request):
-    return render(request, 'grades/home.html')
+    recent_activities = Activity.objects.none()
+    if request.user.is_authenticated:
+        profile = getattr(request.user, 'profile', None)
+        # Admin / staff see everything
+        if request.user.is_superuser or getattr(request.user, 'is_staff', False) or (profile and profile.role == Profile.ROLE_ADMIN):
+            recent_activities = Activity.objects.select_related('actor', 'target_student', 'target_subject').all()[:40]
+        elif profile and profile.role == Profile.ROLE_CLASS_TEACHER:
+            # Activities for students in the class or activities on subjects assigned to the teacher
+            assigned_subjects = profile.assigned_subjects.all()
+            recent_activities = Activity.objects.filter(
+                Q(target_student__class_name=profile.assigned_class) |
+                Q(target_subject__in=assigned_subjects)
+            ).select_related('actor', 'target_student', 'target_subject').distinct()[:40]
+        elif profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+            assigned_subjects = profile.assigned_subjects.all()
+            recent_activities = Activity.objects.filter(
+                Q(target_subject__in=assigned_subjects) |
+                Q(target_student__subjects__in=assigned_subjects)
+            ).select_related('actor', 'target_student', 'target_subject').distinct()[:40]
+        elif profile and profile.role == Profile.ROLE_STUDENT:
+            try:
+                student = Student.objects.get(student_id=request.user.username)
+                recent_activities = Activity.objects.filter(target_student=student).select_related('actor', 'target_student', 'target_subject')[:40]
+            except Student.DoesNotExist:
+                recent_activities = Activity.objects.none()
+
+    return render(request, 'grades/home.html', {
+        'recent_activities': recent_activities,
+    })
 
 
 @login_required
@@ -51,6 +80,17 @@ def register_student(request):
                 else:
                     with transaction.atomic():
                         new_user = form.save()
+                    # Log registration activity
+                    try:
+                        student_obj = Student.objects.filter(student_id=new_user.username).first()
+                        Activity.objects.create(
+                            actor=request.user,
+                            action_type=Activity.ACTION_STUDENT_REGISTERED,
+                            target_student=student_obj,
+                            description=f"{request.user.get_full_name() or request.user.username} registered student {student_obj if student_obj else new_user.username}",
+                        )
+                    except Exception:
+                        pass
                     messages.success(
                         request,
                         f'Student profile created successfully. Login ID: {new_user.username}. Password: CIA@123456.'
@@ -59,6 +99,17 @@ def register_student(request):
             else:
                 with transaction.atomic():
                     new_user = form.save()
+                # Log registration activity
+                try:
+                    student_obj = Student.objects.filter(student_id=new_user.username).first()
+                    Activity.objects.create(
+                        actor=request.user,
+                        action_type=Activity.ACTION_STUDENT_REGISTERED,
+                        target_student=student_obj,
+                        description=f"{request.user.get_full_name() or request.user.username} registered student {student_obj if student_obj else new_user.username}",
+                    )
+                except Exception:
+                    pass
                 messages.success(
                     request,
                     f'Student profile created successfully. Login ID: {new_user.username}. Password: CIA@123456.'
@@ -113,6 +164,16 @@ def register_teacher(request):
                 user_profile.assigned_class = profile.assigned_class
             user_profile.save()
 
+            # Log teacher/admin creation
+            try:
+                Activity.objects.create(
+                    actor=request.user,
+                    action_type=Activity.ACTION_TEACHER_REGISTERED,
+                    description=f"{request.user.get_full_name() or request.user.username} created account {user.username} with role {chosen_role}",
+                )
+            except Exception:
+                pass
+
             messages.success(request, f'{dict(Profile.ROLE_CHOICES).get(chosen_role, chosen_role)} account created for {user.username}.')
             return redirect('teacher_dashboard')
     else:
@@ -136,9 +197,31 @@ def logout_view(request):
 @login_required
 def teacher_dashboard(request):
     profile = getattr(request.user, 'profile', None)
-    if profile is None or profile.role == 'student':
-        messages.warning(request, 'Teacher access only. Please sign in with a teacher account.')
-        return redirect('student_dashboard')
+    # If there is no Profile object but the user is marked as staff/superuser,
+    # treat them as a teacher/admin for dashboard access. Create a Profile
+    # record if missing to make template/context usage consistent.
+    if profile is None:
+        if request.user.is_superuser or getattr(request.user, 'is_staff', False):
+            try:
+                profile, _ = Profile.objects.get_or_create(user=request.user, defaults={'role': Profile.ROLE_ADMIN if request.user.is_superuser else Profile.ROLE_CLASS_TEACHER})
+            except Exception:
+                profile = None
+        else:
+            messages.warning(request, 'Teacher access only. Please sign in with a teacher account.')
+            return redirect('student_dashboard')
+
+    if profile and profile.role == 'student':
+        # If the user is marked as staff/superuser, treat them as a teacher
+        # for dashboard access and update their profile role for consistency.
+        if request.user.is_superuser or getattr(request.user, 'is_staff', False):
+            try:
+                profile.role = Profile.ROLE_ADMIN if request.user.is_superuser else Profile.ROLE_CLASS_TEACHER
+                profile.save()
+            except Exception:
+                pass
+        else:
+            messages.warning(request, 'Teacher access only. Please sign in with a teacher account.')
+            return redirect('student_dashboard')
 
     if profile.role == 'admin':
         students = Student.objects.all().order_by('last_name')
@@ -203,7 +286,7 @@ def enter_academic_scores(request):
 
         if form.is_valid():
             data = form.cleaned_data
-            Grade.objects.update_or_create(
+            grade, created = Grade.objects.update_or_create(
                 student=data['student'],
                 subject=data['subject'],
                 term=data['term'],
@@ -217,6 +300,17 @@ def enter_academic_scores(request):
                     'remarks': data.get('remarks', ''),
                 }
             )
+            # Log activity
+            try:
+                Activity.objects.create(
+                    actor=request.user,
+                    action_type=Activity.ACTION_GRADE_CREATED if created else Activity.ACTION_GRADE_UPDATED,
+                    target_student=grade.student,
+                    target_subject=grade.subject,
+                    description=f"{request.user.get_full_name() or request.user.username} {'created' if created else 'updated'} grade for {grade.student} in {grade.subject}: {grade.marks} ({grade.letter_grade})",
+                )
+            except Exception:
+                pass
             messages.success(request, 'Academic score saved successfully.')
             if selected_student:
                 return redirect(f"{request.path}?student={selected_student.pk}")
@@ -283,7 +377,7 @@ def enter_behavioral_assessments(request):
 
         if form.is_valid():
             data = form.cleaned_data
-            BehavioralGrade.objects.update_or_create(
+            bg, created = BehavioralGrade.objects.update_or_create(
                 student=data['student'],
                 term=data['term'],
                 defaults={
@@ -300,6 +394,15 @@ def enter_behavioral_assessments(request):
                     'remarks': data['remarks'],
                 }
             )
+            try:
+                Activity.objects.create(
+                    actor=request.user,
+                    action_type=Activity.ACTION_BEHAVIORAL_CREATED if created else Activity.ACTION_BEHAVIORAL_UPDATED,
+                    target_student=bg.student,
+                    description=f"{request.user.get_full_name() or request.user.username} {'created' if created else 'updated'} behavioral assessment for {bg.student} (term: {bg.term})",
+                )
+            except Exception:
+                pass
             messages.success(request, 'Behavioral assessment saved successfully.')
             return redirect('enter_behavioral_assessments')
     else:
