@@ -46,12 +46,12 @@ class TermSettingAdmin(admin.ModelAdmin):
         return False
 
 
-class ProfileInline(admin.StackedInline):
-    model = Profile
-    can_delete = False
-    verbose_name_plural = 'profile'
-    fk_name = 'user'
-    # We will set a custom form below for the inline
+# class ProfileInline(admin.StackedInline):
+#     model = Profile
+#     can_delete = False
+#     verbose_name_plural = 'profile'
+#     fk_name = 'user'
+#     # We will set a custom form below for the inline
 
 
 class ProfileAdminForm(forms.ModelForm):
@@ -96,7 +96,7 @@ class GradeAdmin(admin.ModelAdmin):
     list_display = ['student', 'subject', 'marks', 'letter_grade', 'term']
     list_filter = ['term', 'letter_grade', 'subject']
     search_fields = ['student__first_name', 'student__last_name', 'student__student_id', 'subject__code']
-    readonly_fields = ['letter_grade', 'date_recorded', 'last_updated']
+    readonly_fields = ['marks', 'letter_grade', 'date_recorded', 'last_updated']
     fieldsets = (
         ('Student & Subject', {
             'fields': ('student', 'subject', 'term')
@@ -143,3 +143,41 @@ class BehavioralGradeAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+class CustomUserAdmin(DefaultUserAdmin):
+    inlines = (ProfileInline,)
+
+    def save_formset(self, request, form, formset, change):
+        instances = formset.save(commit=False)
+        for instance in instances:
+            if isinstance(instance, Profile):
+                # get_or_create to avoid collision with the post_save signal
+                # which already created a Profile when the User was saved
+                obj, _ = Profile.objects.get_or_create(user=instance.user)
+                obj.role = instance.role
+                obj.assigned_class = instance.assigned_class
+                obj.save()
+
+                # Handle assigned_subjects M2M manually on the saved obj,
+                # NOT via formset.save_m2m() which would try to use the
+                # unsaved instance (no id) and raise ValueError
+                for inline_form in formset.forms:
+                    if 'assigned_subjects' in inline_form.cleaned_data:
+                        obj.assigned_subjects.set(
+                            inline_form.cleaned_data['assigned_subjects']
+                        )
+            else:
+                instance.save()
+
+        # Only call save_m2m for non-Profile formsets (e.g. permissions).
+        # Profile M2M is already handled above.
+        for inline_form in formset.forms:
+            if not isinstance(inline_form.instance, Profile):
+                inline_form.save_m2m()
+try:
+    admin.site.unregister(User)
+except Exception:
+    pass
+
+admin.site.register(User, CustomUserAdmin)
