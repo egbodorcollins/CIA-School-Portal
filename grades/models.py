@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import IntegrityError, models, transaction
 from django.core.validators import MinValueValidator, MaxValueValidator
 from datetime import datetime
 from django.contrib.auth.models import User
@@ -11,6 +11,12 @@ TERM_CHOICES = [
     ('third_term', 'Third Term'),
     ('session', 'Session Average'),
 ]
+
+TERM_MAP = {
+    '1': 'First Term',
+    '2': 'Second Term',
+    '3': 'Third Term',
+}
 
 
 class Student(models.Model):
@@ -304,13 +310,16 @@ class Activity(models.Model):
 
 @receiver(post_save, sender=User)
 def create_or_update_user_profile(sender, instance, created, **kwargs):
+    # Ignore raw imports (like loading data from a backup/fixture)
+    if kwargs.get('raw', False):
+        return
+
     if created:
-        # Use get_or_create to be safe against race conditions
-        Profile.objects.get_or_create(user=instance)
-    else:
-        # Only save if the profile attribute is already loaded/exists
-        try:
-            if hasattr(instance, 'profile'):
-                instance.profile.save()
-        except Profile.DoesNotExist:
-            Profile.objects.create(user=instance)
+        # 'atomic' ensures this block is treated as a single unit
+        with transaction.atomic():
+            try:
+                # get_or_create is the "first line of defense"
+                Profile.objects.get_or_create(user=instance)
+            except IntegrityError:
+                # If a race condition happened and it exists, just exit quietly
+                pass

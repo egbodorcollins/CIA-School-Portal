@@ -16,7 +16,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from .models import Student, Grade, BehavioralGrade, TermSetting, Profile, Activity, Subject
+from .models import Student, Grade, BehavioralGrade, TermSetting, Profile, Activity, Subject, TERM_CHOICES, TERM_MAP
 from django.db.models import Q
 from .forms import StudentSignUpForm, GradeEntryForm, BehavioralGradeEntryForm, TeacherCreationForm, get_class_code
 from django.forms import HiddenInput
@@ -130,13 +130,19 @@ def register_student(request):
 @class_teacher_or_admin_required
 def register_teacher(request):
     profile = getattr(request.user, 'profile', None)
+
+    # Ensure profile exists for admin/staff to prevent "Unable to determine role" errors
+    if profile is None and (request.user.is_superuser or request.user.is_staff):
+        profile, _ = Profile.objects.get_or_create(
+            user=request.user, 
+            defaults={'role': Profile.ROLE_ADMIN if request.user.is_superuser else Profile.ROLE_CLASS_TEACHER}
+        )
+
     if profile is None:
         messages.error(request, 'Unable to determine your role. Contact admin.')
         return redirect('teacher_dashboard')
 
-    # Admins can create admins, class teachers and subject teachers.
-    # Class teachers can only create subject teachers (and assign them subjects).
-    if profile.role == Profile.ROLE_ADMIN:
+    if profile.role == Profile.ROLE_ADMIN or request.user.is_superuser:
         allowed_roles = [r[0] for r in Profile.ROLE_CHOICES if r[0] != Profile.ROLE_STUDENT]
     elif profile.role == Profile.ROLE_CLASS_TEACHER:
         allowed_roles = [Profile.ROLE_SUBJECT_TEACHER]
@@ -199,15 +205,15 @@ def logout_view(request):
 @login_required
 def teacher_dashboard(request):
     profile = getattr(request.user, 'profile', None)
-    # If there is no Profile object but the user is marked as staff/superuser,
-    # treat them as a teacher/admin for dashboard access. Create a Profile
-    # record if missing to make template/context usage consistent.
+
     if profile is None:
-        if request.user.is_superuser or getattr(request.user, 'is_staff', False):
-            try:
-                profile, _ = Profile.objects.get_or_create(user=request.user, defaults={'role': Profile.ROLE_ADMIN if request.user.is_superuser else Profile.ROLE_CLASS_TEACHER})
-            except Exception:
-                profile = None
+        messages.warning(request, 'Teacher access only. Please sign in with a teacher account.')
+        return redirect('student_dashboard')
+        if request.user.is_superuser or request.user.is_staff:
+            profile, _ = Profile.objects.get_or_create(
+                user=request.user, 
+                defaults={'role': Profile.ROLE_ADMIN if request.user.is_superuser else Profile.ROLE_CLASS_TEACHER}
+            )
         else:
             messages.warning(request, 'Teacher access only. Please sign in with a teacher account.')
             return redirect('student_dashboard')
@@ -224,6 +230,11 @@ def teacher_dashboard(request):
         else:
             messages.warning(request, 'Teacher access only. Please sign in with a teacher account.')
             return redirect('student_dashboard')
+
+    # Guard against profile still being None after a failed get_or_create
+    if not profile:
+        messages.error(request, 'Could not load your staff profile. Please contact the administrator.')
+        return redirect('home')
 
     if profile.role == 'admin':
         students = Student.objects.all().order_by('last_name')
@@ -491,6 +502,7 @@ def report_card_pdf(request):
         latest_term = max(term_candidates, key=lambda t: term_order.get(t, 0))
 
     term_display = dict(Grade.TERM_CHOICES).get(latest_term, latest_term.replace('_', ' ').title())
+    term_display = TERM_MAP.get(latest_term, latest_term.replace('_', ' ').title())
     selected_grades = [grade for grade in grades if grade.term == latest_term]
     selected_behavior = behavioral_grades.filter(term=latest_term).first()
 

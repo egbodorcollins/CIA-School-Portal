@@ -78,8 +78,18 @@ def generate_student_id(class_name):
     prefix = f'CIA/{class_code}{registration_year}/'
     latest_sequence = 0
 
+    # Check existing Student records
     for student_id in Student.objects.filter(student_id__startswith=prefix).values_list('student_id', flat=True):
         suffix = student_id.rsplit('/', 1)[-1]
+        try:
+            latest_sequence = max(latest_sequence, int(suffix, 16))
+        except ValueError:
+            continue
+
+    # Also check User model to catch orphaned accounts where
+    # the Student record was deleted but the User account remains
+    for username in User.objects.filter(username__startswith=prefix).values_list('username', flat=True):
+        suffix = username.rsplit('/', 1)[-1]
         try:
             latest_sequence = max(latest_sequence, int(suffix, 16))
         except ValueError:
@@ -148,6 +158,7 @@ class StudentSignUpForm(forms.Form):
             student.save()
             
             # The signal creates the profile, we just need to update it
+            profile, _ = Profile.objects.get_or_create(user=user)
             profile = user.profile
             profile.role = Profile.ROLE_STUDENT
             profile.save()
@@ -251,6 +262,7 @@ class TeacherCreationForm(forms.Form):
         if commit:
             user.save()
             # Update the profile created by the signal
+            profile, _ = Profile.objects.get_or_create(user=user)
             profile = user.profile
             profile.role = self.cleaned_data.get('role')
             profile.assigned_class = self.cleaned_data.get('assigned_class') or ''
