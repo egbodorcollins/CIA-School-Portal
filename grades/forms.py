@@ -10,9 +10,11 @@ AUTO_STUDENT_PASSWORD = 'CIA@123456'
 
 
 CLASS_CODE_MAP = {
+    'Pre-School': 'PS',
     'NURSERY1': 'N1',
     'NURSERY2': 'N2',
     'NURSERY3': 'N3',
+    'PS': 'PS',
     'N1': 'N1',
     'N2': 'N2',
     'N3': 'N3',
@@ -43,6 +45,7 @@ CLASS_CODE_MAP = {
 }
 
 CLASS_CHOICES = [
+    ('Pre-School', 'Pre-School'),
     ('Nursery 1', 'Nursery 1'),
     ('Nursery 2', 'Nursery 2'),
     ('Nursery 3', 'Nursery 3'),
