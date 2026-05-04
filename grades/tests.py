@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
-from .models import Student, Subject, TermSetting
+from .models import ClassPromotionRequest, Profile, Student, Subject, TermSetting
 
 
 class StudentRegistrationTests(TestCase):
@@ -88,6 +88,15 @@ class PortalRenderingTests(TestCase):
         self.assertContains(response, 'Term: First Term')
         self.assertContains(response, 'Date:')
 
+    def test_teacher_dashboard_links_to_promotion_tool_for_staff(self):
+        self.client.login(username='teacher', password='pass12345')
+
+        response = self.client.get(reverse('teacher_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Request Promotion')
+        self.assertContains(response, f"{reverse('manage_students')}#end-of-year-promotion")
+
     def test_set_current_term_redirects_to_admin_dashboard(self):
         self.client.login(username='teacher', password='pass12345')
 
@@ -95,6 +104,20 @@ class PortalRenderingTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(response.url, reverse('admin:grades_termsetting_changelist'))
+
+    def test_admin_dashboard_links_to_promotion_tool(self):
+        admin_user = User.objects.create_superuser(
+            username='superadmin',
+            password='pass12345',
+            email='admin@example.com',
+        )
+        self.client.login(username=admin_user.username, password='pass12345')
+
+        response = self.client.get(reverse('admin:index'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'End-of-Year Student Promotion Approvals')
+        self.assertContains(response, f"{reverse('manage_students')}#end-of-year-promotion")
 
     def test_password_change_page_renders(self):
         self.client.login(username='teacher', password='pass12345')
@@ -198,6 +221,10 @@ class PromoteClassTests(TestCase):
         self.staff_user = User.objects.create_user(username='admin', password='pass12345')
         self.staff_user.is_staff = True
         self.staff_user.save()
+        self.teacher_user = User.objects.create_user(username='basic5teacher', password='pass12345')
+        self.teacher_user.profile.role = Profile.ROLE_CLASS_TEACHER
+        self.teacher_user.profile.assigned_class = 'Basic 5'
+        self.teacher_user.profile.save()
         TermSetting.objects.create(current_term='first_term')
         self.old_subject = Subject.objects.create(code='ENG B51', name='English Studies')
         self.new_subject = Subject.objects.create(code='ENG B61', name='English Studies')
@@ -220,7 +247,7 @@ class PromoteClassTests(TestCase):
         self.assertEqual(self.student.class_name, 'Basic 5')
 
     def test_promote_class_requires_confirmation(self):
-        self.client.login(username='admin', password='pass12345')
+        self.client.login(username='basic5teacher', password='pass12345')
 
         response = self.client.post(reverse('promote_class'), data={'from_class': 'Basic 5'})
 
@@ -228,9 +255,10 @@ class PromoteClassTests(TestCase):
         self.student.refresh_from_db()
         self.assertEqual(self.student.class_name, 'Basic 5')
         self.assertEqual(list(self.student.subjects.values_list('code', flat=True)), ['ENG B51'])
+        self.assertFalse(ClassPromotionRequest.objects.exists())
 
-    def test_promote_class_moves_students_and_resets_subjects(self):
-        self.client.login(username='admin', password='pass12345')
+    def test_class_teacher_requests_assigned_class_promotion(self):
+        self.client.login(username='basic5teacher', password='pass12345')
 
         response = self.client.post(reverse('promote_class'), data={
             'from_class': 'Basic 5',
@@ -239,11 +267,42 @@ class PromoteClassTests(TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.student.refresh_from_db()
-        self.assertEqual(self.student.class_name, 'Basic 6')
-        self.assertCountEqual(
-            self.student.subjects.values_list('code', flat=True),
-            ['ENG B61', 'MAT B61'],
+        self.assertEqual(self.student.class_name, 'Basic 5')
+        request = ClassPromotionRequest.objects.get()
+        self.assertEqual(request.from_class, 'Basic 5')
+        self.assertEqual(request.to_class, 'Basic 6')
+        self.assertEqual(request.status, ClassPromotionRequest.STATUS_PENDING)
+        self.assertEqual(request.student_count, 1)
+
+    def test_class_teacher_cannot_request_another_class_promotion(self):
+        self.client.login(username='basic5teacher', password='pass12345')
+
+        response = self.client.post(reverse('promote_class'), data={
+            'from_class': 'Basic 4',
+            'confirm': 'yes',
+        })
+
+        self.assertEqual(response.status_code, 302)
+        self.assertFalse(ClassPromotionRequest.objects.exists())
+
+    def test_admin_approval_moves_students_and_resets_subjects(self):
+        promotion_request = ClassPromotionRequest.objects.create(
+            from_class='Basic 5',
+            to_class='Basic 6',
+            requested_by=self.teacher_user,
+            student_count=1,
         )
+        self.client.login(username='admin', password='pass12345')
+
+        response = self.client.post(reverse('approve_class_promotion', args=[promotion_request.pk]))
+
+        self.assertEqual(response.status_code, 302)
+        self.student.refresh_from_db()
+        promotion_request.refresh_from_db()
+        self.assertEqual(self.student.class_name, 'Basic 6')
+        self.assertEqual(promotion_request.status, ClassPromotionRequest.STATUS_APPROVED)
+        self.assertEqual(promotion_request.approved_by, self.staff_user)
+        self.assertCountEqual(self.student.subjects.values_list('code', flat=True), ['ENG B61', 'MAT B61'])
         self.assertNotIn(self.old_subject, self.student.subjects.all())
 
     def test_promote_class_rejects_class_without_progression(self):
@@ -257,3 +316,4 @@ class PromoteClassTests(TestCase):
         self.assertEqual(response.status_code, 302)
         self.student.refresh_from_db()
         self.assertEqual(self.student.class_name, 'Basic 5')
+        self.assertFalse(ClassPromotionRequest.objects.exists())

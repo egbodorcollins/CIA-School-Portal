@@ -10,6 +10,9 @@
             <a class="button button-secondary" href="{% url 'enter_academic_scores' %}">Enter Academic Scores</a>
             <a class="button button-secondary" href="{% url 'enter_behavioral_assessments' %}">Enter Behavioral Assessments</a>
             <a class="button button-secondary" href="{% url 'manage_students' %}">Manage Students</a>
+            {% if can_request_promotion %}
+                <a class="button button-primary" href="{% url 'manage_students' %}#end-of-year-promotion">Request Promotion</a>
+            {% endif %}
         </div>
         <div class="student-list">
             <h3>Student Roster</h3>
