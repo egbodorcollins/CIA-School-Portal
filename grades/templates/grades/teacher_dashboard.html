@@ -8,6 +8,7 @@
         <div class="teacher-actions">
             <a class="button button-primary" href="{% url 'register_student' %}">Register New Student</a>
             <a class="button button-secondary" href="{% url 'enter_academic_scores' %}">Enter Academic Scores</a>
+            <a class="button button-secondary" href="{% url 'class_analytics' %}">Class Analytics</a>
             <a class="button button-secondary" href="{% url 'enter_behavioral_assessments' %}">Enter Behavioral Assessments</a>
             <a class="button button-secondary" href="{% url 'manage_students' %}">Manage Students</a>
             {% if can_request_promotion %}

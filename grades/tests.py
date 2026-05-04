@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
-from .models import ClassPromotionRequest, Profile, Student, Subject, TermSetting
+from .models import ClassPromotionRequest, Grade, Profile, Student, Subject, TermSetting
 
 
 class StudentRegistrationTests(TestCase):
@@ -177,6 +177,32 @@ class PortalRenderingTests(TestCase):
         self.assertContains(response, 'Relationship with Staff')
         self.assertContains(response, 'Times Present')
         self.assertNotContains(response, 'behavioral_score')
+
+    def test_class_analytics_renders_aggregate_sections(self):
+        TermSetting.objects.create(current_term='first_term')
+        math = Subject.objects.create(code='MAT B51', name='Mathematics')
+        english = Subject.objects.create(code='ENG B51', name='English Studies')
+        ada = Student.objects.create(student_id='CIA/B52026/0001', first_name='Ada', last_name='King', class_name='Basic 5')
+        ben = Student.objects.create(student_id='CIA/B52026/0002', first_name='Ben', last_name='Stone', class_name='Basic 5')
+        Grade.objects.create(student=ada, subject=math, term='first_term', homework=5, class_work=10, project=5, first_test=10, midterm_test=10, exam=55)
+        Grade.objects.create(student=ada, subject=english, term='first_term', homework=5, class_work=9, project=5, first_test=9, midterm_test=9, exam=50)
+        Grade.objects.create(student=ben, subject=math, term='first_term', homework=3, class_work=7, project=4, first_test=7, midterm_test=7, exam=42)
+        Grade.objects.create(student=ben, subject=english, term='second_term', homework=2, class_work=6, project=3, first_test=6, midterm_test=6, exam=35)
+        self.client.login(username='teacher', password='pass12345')
+
+        response = self.client.get(reverse('class_analytics'), {'class': 'Basic 5'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'grades/class_analytics.html')
+        self.assertContains(response, 'Class Analytics')
+        self.assertContains(response, 'Subject Averages')
+        self.assertContains(response, 'Grade Distribution')
+        self.assertContains(response, 'Top 5 Students')
+        self.assertContains(response, 'Bottom 5 Students')
+        self.assertContains(response, 'Current Term vs Previous Terms')
+        self.assertContains(response, 'Mathematics')
+        self.assertContains(response, 'Ada King')
+        self.assertContains(response, 'Ben Stone')
 
 
 class DeleteStudentTests(TestCase):

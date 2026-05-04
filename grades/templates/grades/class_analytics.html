@@ -1,0 +1,170 @@
+{% extends 'grades/base.html' %}
+{% block content %}
+<div class="page-shell">
+    <div class="dashboard-card analytics-dashboard">
+        <div class="analytics-header">
+            <div>
+                <h2>Class Analytics</h2>
+                <p>Performance summary for {{ selected_class|default:'No class selected' }} in {{ current_term_display }}.</p>
+            </div>
+            {% if class_options|length > 1 %}
+                <form method="get" class="analytics-class-form">
+                    <label for="class-select">Class</label>
+                    <select id="class-select" name="class" onchange="this.form.submit()">
+                        {% for class_name in class_options %}
+                            <option value="{{ class_name }}" {% if class_name == selected_class %}selected{% endif %}>{{ class_name }}</option>
+                        {% endfor %}
+                    </select>
+                    <noscript><button type="submit" class="button button-secondary">View</button></noscript>
+                </form>
+            {% endif %}
+        </div>
+
+        <div class="analytics-summary">
+            <div>
+                <span>Students</span>
+                <strong>{{ student_count }}</strong>
+            </div>
+            <div>
+                <span>Grade Entries</span>
+                <strong>{{ total_grade_entries }}</strong>
+            </div>
+            <div>
+                <span>Subjects</span>
+                <strong>{{ subject_averages|length }}</strong>
+            </div>
+        </div>
+
+        {% if selected_class and total_grade_entries %}
+            <section class="analytics-section">
+                <h3>Subject Averages</h3>
+                <div class="grades-table analytics-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Subject</th>
+                                <th>Code</th>
+                                <th>Average</th>
+                                <th>Entries</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for subject in subject_averages %}
+                                <tr>
+                                    <td>{{ subject.subject__name }}</td>
+                                    <td>{{ subject.subject__code }}</td>
+                                    <td>{{ subject.average|floatformat:1 }}</td>
+                                    <td>{{ subject.entries }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section class="analytics-section">
+                <h3>Grade Distribution</h3>
+                <div class="grade-chart-wrap">
+                    <svg class="grade-chart" viewBox="0 0 360 210" role="img" aria-label="Grade distribution from A to F">
+                        <line x1="20" y1="150" x2="340" y2="150" class="chart-axis"></line>
+                        {% for item in grade_distribution %}
+                            <g>
+                                <rect x="{{ item.x }}" y="{{ item.y }}" width="34" height="{{ item.height }}" rx="4" class="chart-bar"></rect>
+                                <text x="{{ item.label_x }}" y="{{ item.count_y }}" class="chart-count">{{ item.count }}</text>
+                                <text x="{{ item.label_x }}" y="178" class="chart-label">{{ item.letter }}</text>
+                            </g>
+                        {% endfor %}
+                    </svg>
+                    <div class="grade-chart-fallback">
+                        {% for item in grade_distribution %}
+                            <span><strong>{{ item.letter }}</strong> {{ item.count }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </section>
+
+            <div class="analytics-grid">
+                <section class="analytics-section">
+                    <h3>Top 5 Students</h3>
+                    <div class="grades-table analytics-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>Average</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in top_students %}
+                                    <tr>
+                                        <td>{{ student.student__first_name }} {{ student.student__last_name }}</td>
+                                        <td>{{ student.average|floatformat:1 }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <section class="analytics-section">
+                    <h3>Bottom 5 Students</h3>
+                    <div class="grades-table analytics-table">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Student</th>
+                                    <th>Average</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in bottom_students %}
+                                    <tr>
+                                        <td>{{ student.student__first_name }} {{ student.student__last_name }}</td>
+                                        <td>{{ student.average|floatformat:1 }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <section class="analytics-section">
+                <h3>Current Term vs Previous Terms</h3>
+                <div class="grades-table analytics-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Term</th>
+                                <th>Class Average</th>
+                                <th>Entries</th>
+                                <th>Difference from Current</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for term in term_averages %}
+                                <tr {% if term.is_current %}class="current-term-row"{% endif %}>
+                                    <td>{{ term.label }}{% if term.is_current %} <span class="term-badge">Current</span>{% endif %}</td>
+                                    <td>{% if term.average is not None %}{{ term.average|floatformat:1 }}{% else %}No scores{% endif %}</td>
+                                    <td>{{ term.entries }}</td>
+                                    <td>
+                                        {% if term.is_current %}
+                                            -
+                                        {% elif term.delta_from_current is not None %}
+                                            {{ term.delta_from_current|floatformat:1 }}
+                                        {% else %}
+                                            -
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        {% else %}
+            <p class="empty-state">No academic scores are available for this class and term yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -24,6 +24,7 @@ urlpatterns = [
         name='password_change_done',
     ),
     path('teacher/dashboard/', views.teacher_dashboard, name='teacher_dashboard'),
+    path('teacher/analytics/', views.class_analytics, name='class_analytics'),
     path('teacher/current-term/', views.set_current_term, name='set_current_term'),
     path('teacher/enter-scores/', views.enter_academic_scores, name='enter_academic_scores'),
     path('teacher/enter-behavior/', views.enter_behavioral_assessments, name='enter_behavioral_assessments'),

@@ -28,7 +28,7 @@ from .models import (
     TERM_CHOICES,
     TERM_MAP,
 )
-from django.db.models import Q
+from django.db.models import Avg, Count, Q
 from .forms import (
     StudentSignUpForm,
     GradeEntryForm,
@@ -278,6 +278,123 @@ def teacher_dashboard(request):
         'students': students,
         'form': form,
         'can_request_promotion': profile.role == Profile.ROLE_CLASS_TEACHER or _user_can_approve_promotions(request.user, profile),
+    })
+
+
+@login_required
+@teacher_or_admin_required
+def class_analytics(request):
+    profile = getattr(request.user, 'profile', None)
+    current_term = TermSetting.get_current_term()
+    term_labels = dict(TERM_CHOICES)
+    academic_terms = [term for term, _label in TERM_CHOICES if term != 'session']
+    if current_term not in academic_terms:
+        academic_terms.append(current_term)
+
+    if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
+        class_options = [profile.assigned_class]
+        selected_class = profile.assigned_class
+    elif profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+        assigned_subjects = profile.assigned_subjects.all()
+        class_options = list(
+            Student.objects.filter(
+                Q(subjects__in=assigned_subjects) | Q(grades__subject__in=assigned_subjects)
+            )
+            .exclude(class_name__isnull=True)
+            .exclude(class_name='')
+            .order_by('class_name')
+            .values_list('class_name', flat=True)
+            .distinct()
+        )
+        selected_class = request.GET.get('class') or (class_options[0] if class_options else '')
+    else:
+        class_options = list(
+            Student.objects.exclude(class_name__isnull=True)
+            .exclude(class_name='')
+            .order_by('class_name')
+            .values_list('class_name', flat=True)
+            .distinct()
+        )
+        selected_class = request.GET.get('class') or (class_options[0] if class_options else '')
+
+    if selected_class not in class_options and class_options:
+        selected_class = class_options[0]
+
+    class_grades = Grade.objects.filter(student__class_name=selected_class).select_related('student', 'subject')
+    current_grades = class_grades.filter(term=current_term)
+
+    subject_averages = list(
+        current_grades.values('subject__name', 'subject__code')
+        .annotate(average=Avg('marks'), entries=Count('id'))
+        .order_by('subject__name')
+    )
+
+    raw_distribution = dict(
+        current_grades.values('letter_grade').annotate(total=Count('id')).values_list('letter_grade', 'total')
+    )
+    max_grade_count = max(raw_distribution.values(), default=0)
+    grade_distribution = []
+    for index, letter in enumerate(['A', 'B', 'C', 'D', 'E', 'F']):
+        count = raw_distribution.get(letter, 0)
+        height = round((count / max_grade_count) * 140, 1) if max_grade_count else 0
+        x = 36 + (index * 52)
+        y = 150 - height
+        grade_distribution.append({
+            'letter': letter,
+            'count': count,
+            'height': height,
+            'x': x,
+            'label_x': x + 17,
+            'y': y,
+            'count_y': max(14, y - 8),
+        })
+
+    ranked_students = list(
+        current_grades.values('student__student_id', 'student__first_name', 'student__last_name')
+        .annotate(average=Avg('marks'), entries=Count('id'))
+        .order_by('-average', 'student__last_name', 'student__first_name')
+    )
+    top_students = ranked_students[:5]
+    bottom_students = sorted(
+        ranked_students,
+        key=lambda row: (row['average'] if row['average'] is not None else 0, row['student__last_name'], row['student__first_name'])
+    )[:5]
+
+    term_averages = []
+    raw_term_averages = {
+        row['term']: row
+        for row in class_grades.filter(term__in=academic_terms)
+        .values('term')
+        .annotate(average=Avg('marks'), entries=Count('id'))
+    }
+    current_average = raw_term_averages.get(current_term, {}).get('average')
+    for term in academic_terms:
+        row = raw_term_averages.get(term, {})
+        average = row.get('average')
+        delta = None
+        if average is not None and current_average is not None and term != current_term:
+            delta = current_average - average
+        term_averages.append({
+            'term': term,
+            'label': term_labels.get(term, term.replace('_', ' ').title()),
+            'average': average,
+            'entries': row.get('entries', 0),
+            'is_current': term == current_term,
+            'delta_from_current': delta,
+        })
+
+    return render(request, 'grades/class_analytics.html', {
+        'class_options': class_options,
+        'selected_class': selected_class,
+        'current_term': current_term,
+        'current_term_display': term_labels.get(current_term, current_term.replace('_', ' ').title()),
+        'subject_averages': subject_averages,
+        'grade_distribution': grade_distribution,
+        'top_students': top_students,
+        'bottom_students': bottom_students,
+        'term_averages': term_averages,
+        'total_grade_entries': current_grades.count(),
+        'student_count': Student.objects.filter(class_name=selected_class).count() if selected_class else 0,
     })
 
 

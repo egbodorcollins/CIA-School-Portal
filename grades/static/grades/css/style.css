@@ -664,6 +664,152 @@ blockquote.instagram-media iframe {
   margin: 24px 0;
 }
 
+.analytics-dashboard {
+  display: grid;
+  gap: 24px;
+}
+
+.analytics-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: start;
+}
+
+.analytics-header h2,
+.analytics-header p {
+  margin-top: 0;
+}
+
+.analytics-class-form {
+  display: grid;
+  gap: 8px;
+  min-width: min(260px, 100%);
+}
+
+.analytics-class-form label {
+  color: #6d4a40;
+  font-weight: 700;
+}
+
+.analytics-class-form select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid #e8e2dc;
+  border-radius: 14px;
+  font-size: 1rem;
+}
+
+.analytics-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.analytics-summary div {
+  padding: 18px;
+  border-radius: 18px;
+  background: #fff8f2;
+  border: 1px solid rgba(248, 157, 87, 0.2);
+}
+
+.analytics-summary span {
+  display: block;
+  color: #6d4a40;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.analytics-summary strong {
+  color: var(--brand-red);
+  font-size: 1.8rem;
+}
+
+.analytics-section {
+  display: grid;
+  gap: 12px;
+}
+
+.analytics-section h3 {
+  margin: 0;
+  color: var(--brand-red);
+}
+
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.analytics-table {
+  overflow-x: auto;
+}
+
+.analytics-table table {
+  min-width: 420px;
+}
+
+.grade-chart-wrap {
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+  border-radius: 18px;
+  background: #fff8f2;
+  border: 1px solid rgba(248, 157, 87, 0.2);
+}
+
+.grade-chart {
+  width: 100%;
+  height: auto;
+  min-height: 210px;
+}
+
+.chart-axis {
+  stroke: rgba(36, 24, 28, 0.25);
+  stroke-width: 2;
+}
+
+.chart-bar {
+  fill: var(--brand-orange);
+}
+
+.chart-count,
+.chart-label {
+  fill: var(--brand-dark);
+  font-size: 13px;
+  font-weight: 700;
+  text-anchor: middle;
+}
+
+.grade-chart-fallback {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: #6d4a40;
+}
+
+.grade-chart-fallback span {
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #fff;
+  border: 1px solid #f0e4de;
+}
+
+.current-term-row {
+  background: rgba(248, 157, 87, 0.1);
+}
+
+.term-badge {
+  display: inline-flex;
+  margin-left: 8px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: var(--brand-white);
+  background: var(--brand-red);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
 .site-footer {
   padding: 20px 32px;
   text-align: center;
@@ -757,6 +903,16 @@ blockquote.instagram-media iframe {
 
   .teacher-actions .button {
     width: 100%;
+  }
+
+  .analytics-header,
+  .analytics-grid {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .analytics-summary {
+    grid-template-columns: 1fr;
   }
 }
 
