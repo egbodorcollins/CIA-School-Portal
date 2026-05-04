@@ -170,7 +170,11 @@ LOGGING = {
         'file': {
             'level': 'ERROR',
             'class': 'logging.FileHandler',
+            'class': 'logging.handlers.TimedRotatingFileHandler',
             'filename': BASE_DIR / 'logs' / 'django_error.log',
+            'when': 'D',         # Rotate daily
+            'interval': 1,       # Every 1 day
+            'backupCount': 14,   # Keep history for 14 days
         },
     },
     'loggers': {

@@ -3,7 +3,9 @@ from django.contrib.auth.admin import UserAdmin as DefaultUserAdmin
 from django.contrib.auth.models import User
 from django import forms
 from .forms import CLASS_CHOICES
-from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile
+from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile, ClassPromotionRequest
+
+admin.site.index_template = 'admin/portal_index.html'
 
 
 @admin.register(Student)
@@ -89,6 +91,14 @@ class ProfileAdmin(admin.ModelAdmin):
     list_filter = ['role', 'assigned_class']
     search_fields = ['user__username', 'user__first_name', 'user__last_name']
     filter_horizontal = ('assigned_subjects',)
+
+
+@admin.register(ClassPromotionRequest)
+class ClassPromotionRequestAdmin(admin.ModelAdmin):
+    list_display = ['from_class', 'to_class', 'student_count', 'status', 'requested_by', 'approved_by', 'created_at', 'reviewed_at']
+    list_filter = ['status', 'from_class', 'to_class', 'created_at']
+    search_fields = ['from_class', 'to_class', 'requested_by__username', 'approved_by__username']
+    readonly_fields = ['created_at', 'reviewed_at']
 
 
 @admin.register(Grade)

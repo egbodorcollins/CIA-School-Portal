@@ -276,6 +276,36 @@ class Profile(models.Model):
         return f'{self.user.username} ({self.get_role_display()})'
 
 
+class ClassPromotionRequest(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_REJECTED = 'rejected'
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_REJECTED, 'Rejected'),
+    ]
+
+    from_class = models.CharField(max_length=50)
+    to_class = models.CharField(max_length=50)
+    requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='promotion_requests')
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_promotion_requests')
+    student_count = models.PositiveIntegerField(default=0)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(blank=True, null=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status', 'from_class']),
+        ]
+
+    def __str__(self):
+        return f'{self.from_class} to {self.to_class} ({self.get_status_display()})'
+
+
 class Activity(models.Model):
     ACTION_GRADE_CREATED = 'grade_created'
     ACTION_GRADE_UPDATED = 'grade_updated'

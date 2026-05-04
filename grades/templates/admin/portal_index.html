@@ -1,0 +1,20 @@
+{% extends "admin/index.html" %}
+
+{% block content %}
+<div class="module">
+    <table>
+        <caption>
+            <a href="{% url 'manage_students' %}#end-of-year-promotion" class="section">End-of-Year Student Promotion Approvals</a>
+        </caption>
+        <tr>
+            <th scope="row">
+                <a href="{% url 'manage_students' %}#end-of-year-promotion">Review Promotion Requests</a>
+            </th>
+            <td>
+                <a href="{% url 'manage_students' %}#end-of-year-promotion" class="button">Open promotion tool</a>
+            </td>
+        </tr>
+    </table>
+</div>
+{{ block.super }}
+{% endblock %}

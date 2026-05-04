@@ -4,6 +4,70 @@
     <div class="dashboard-card">
         <h2>Manage Students</h2>
         <p>Review and remove student records from the school portal. Deletions are permanent.</p>
+        {% if promotion_options %}
+            <div id="end-of-year-promotion" class="teacher-form-card" style="margin-bottom: 24px;">
+                <h3>End-of-Year Promotion</h3>
+                {% if can_approve_promotions %}
+                    <p class="helper-text">Submit a class promotion request, then approve pending requests below when the roster is ready.</p>
+                {% else %}
+                    <p class="helper-text">Submit your class promotion request for admin approval. Students are not moved until an admin approves it.</p>
+                {% endif %}
+                <form method="post" action="{% url 'promote_class' %}">
+                    {% csrf_token %}
+                    <div class="field-row">
+                        <label for="from-class">Class to promote:</label>
+                        <select id="from-class" name="from_class" required>
+                            <option value="">---------</option>
+                            {% for option in promotion_options %}
+                                <option value="{{ option.from_class }}">
+                                    {{ option.from_class }} to {{ option.to_class }} ({{ option.count }} student{{ option.count|pluralize }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label class="field-row" style="display:flex; align-items:center; gap:10px;">
+                        <input type="checkbox" name="confirm" value="yes" required>
+                        I understand this will move every student in the selected class and reset their subjects.
+                    </label>
+                    <button type="submit" class="button button-primary">Request Promotion</button>
+                </form>
+            </div>
+        {% endif %}
+        {% if pending_promotion_requests %}
+            <div class="grades-table" style="margin-bottom: 24px;">
+                <h3>Pending Promotion Requests</h3>
+                <table>
+                    <thead>
+                        <tr><th>Class</th><th>Next Class</th><th>Students</th><th>Requested By</th><th>Requested</th>{% if can_approve_promotions %}<th>Actions</th>{% endif %}</tr>
+                    </thead>
+                    <tbody>
+                        {% for request_item in pending_promotion_requests %}
+                            <tr>
+                                <td>{{ request_item.from_class }}</td>
+                                <td>{{ request_item.to_class }}</td>
+                                <td>{{ request_item.student_count }}</td>
+                                <td>
+                                    {% if request_item.requested_by %}
+                                        {{ request_item.requested_by.get_full_name|default:request_item.requested_by.username }}
+                                    {% else %}
+                                        N/A
+                                    {% endif %}
+                                </td>
+                                <td>{{ request_item.created_at|date:'M j, Y' }}</td>
+                                {% if can_approve_promotions %}
+                                    <td>
+                                        <form method="post" action="{% url 'approve_class_promotion' request_item.pk %}" style="display:inline;">
+                                            {% csrf_token %}
+                                            <button type="submit" class="button button-primary">Approve</button>
+                                        </form>
+                                    </td>
+                                {% endif %}
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% endif %}
         {% if students %}
             <div class="grades-table">
                 <table>
