@@ -287,3 +287,22 @@ CLASS_NAME_BY_CODE = {
     'S2': 'SSS 2',
     'S3': 'SSS 3',
 }
+
+
+CLASS_PROGRESSION = {
+    'Pre-School': 'Nursery 1',
+    'Nursery 1': 'Nursery 2',
+    'Nursery 2': 'Nursery 3',
+    'Nursery 3': 'Basic 1',
+    'Basic 1': 'Basic 2',
+    'Basic 2': 'Basic 3',
+    'Basic 3': 'Basic 4',
+    'Basic 4': 'Basic 5',
+    'Basic 5': 'Basic 6',
+    'Basic 6': 'JSS 1',
+    'JSS 1': 'JSS 2',
+    'JSS 2': 'JSS 3',
+    'JSS 3': 'SSS 1',
+    'SSS 1': 'SSS 2',
+    'SSS 2': 'SSS 3',
+}

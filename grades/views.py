@@ -18,7 +18,15 @@ from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, Tabl
 
 from .models import Student, Grade, BehavioralGrade, TermSetting, Profile, Activity, Subject, TERM_CHOICES, TERM_MAP
 from django.db.models import Q
-from .forms import StudentSignUpForm, GradeEntryForm, BehavioralGradeEntryForm, TeacherCreationForm, get_class_code
+from .forms import (
+    StudentSignUpForm,
+    GradeEntryForm,
+    BehavioralGradeEntryForm,
+    TeacherCreationForm,
+    enroll_student_in_standard_subjects,
+    get_class_code,
+)
+from .subject_map import CLASS_PROGRESSION
 from django.forms import HiddenInput
 
 
@@ -443,8 +451,24 @@ def manage_students(request):
     else:
         students = Student.objects.all().order_by('last_name')
 
+    promotion_options = []
+    can_promote_classes = (
+        (profile and profile.role == Profile.ROLE_ADMIN)
+        or request.user.is_superuser
+        or request.user.is_staff
+    )
+    if can_promote_classes:
+        for from_class, to_class in CLASS_PROGRESSION.items():
+            count = Student.objects.filter(class_name=from_class).count()
+            promotion_options.append({
+                'from_class': from_class,
+                'to_class': to_class,
+                'count': count,
+            })
+
     return render(request, 'grades/manage_students.html', {
         'students': students,
+        'promotion_options': promotion_options,
     })
 
 
@@ -458,6 +482,40 @@ def delete_student(request, student_id):
         messages.success(request, 'Student has been removed from the portal.')
     else:
         messages.error(request, 'Student not found.')
+    return redirect('manage_students')
+
+
+@login_required
+@admin_required
+@require_POST
+def promote_class(request):
+    from_class = request.POST.get('from_class', '').strip()
+    confirmed = request.POST.get('confirm') == 'yes'
+    to_class = CLASS_PROGRESSION.get(from_class)
+
+    if not confirmed:
+        messages.error(request, 'Please confirm the promotion before continuing.')
+        return redirect('manage_students')
+
+    if not to_class:
+        messages.error(request, 'Please select a class that has a configured next class.')
+        return redirect('manage_students')
+
+    with transaction.atomic():
+        students = list(
+            Student.objects.select_for_update()
+            .filter(class_name=from_class)
+            .order_by('last_name', 'first_name')
+        )
+        for student in students:
+            student.class_name = to_class
+            student.save(update_fields=['class_name'])
+            enroll_student_in_standard_subjects(student, to_class, clear_existing=True)
+
+    if students:
+        messages.success(request, f'Promoted {len(students)} student(s) from {from_class} to {to_class} and reset their subject enrollment.')
+    else:
+        messages.info(request, f'No students were found in {from_class}.')
     return redirect('manage_students')
 
 

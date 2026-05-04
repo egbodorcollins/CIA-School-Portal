@@ -4,6 +4,30 @@
     <div class="dashboard-card">
         <h2>Manage Students</h2>
         <p>Review and remove student records from the school portal. Deletions are permanent.</p>
+        {% if promotion_options %}
+            <div class="teacher-form-card" style="margin-bottom: 24px;">
+                <h3>End-of-Year Promotion</h3>
+                <form method="post" action="{% url 'promote_class' %}">
+                    {% csrf_token %}
+                    <div class="field-row">
+                        <label for="from-class">Class to promote:</label>
+                        <select id="from-class" name="from_class" required>
+                            <option value="">---------</option>
+                            {% for option in promotion_options %}
+                                <option value="{{ option.from_class }}">
+                                    {{ option.from_class }} to {{ option.to_class }} ({{ option.count }} student{{ option.count|pluralize }})
+                                </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <label class="field-row" style="display:flex; align-items:center; gap:10px;">
+                        <input type="checkbox" name="confirm" value="yes" required>
+                        I understand this will move every student in the selected class and reset their subjects.
+                    </label>
+                    <button type="submit" class="button button-primary">Promote Class</button>
+                </form>
+            </div>
+        {% endif %}
         {% if students %}
             <div class="grades-table">
                 <table>
