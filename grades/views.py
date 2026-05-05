@@ -588,37 +588,64 @@ def manage_students(request):
     else:
         students = Student.objects.all().order_by('last_name')
 
-    promotion_options = []
     can_approve_promotions = _user_can_approve_promotions(request.user, profile)
+
+    # Build promotion_students: a list of {student, to_class, preselected}
+    # for the inline per-student checkbox table.
+    promotion_students = []
+    promotion_from_class = None
+
     if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
-        to_class = CLASS_PROGRESSION.get(profile.assigned_class)
+        from_class = profile.assigned_class
+        to_class = CLASS_PROGRESSION.get(from_class)
         if to_class:
-            promotion_options.append({
-                'from_class': profile.assigned_class,
-                'to_class': to_class,
-                'count': Student.objects.filter(class_name=profile.assigned_class).count(),
-            })
+            promotion_from_class = from_class
+            for s in Student.objects.filter(class_name=from_class).order_by('last_name', 'first_name'):
+                promotion_students.append({
+                    'student': s,
+                    'to_class': to_class,
+                    'preselected': True,   # default: all ticked, teacher unticks failures
+                })
     elif can_approve_promotions:
+        # Admins see every class that has students and a next class configured.
+        # We don't pre-populate a single from_class here; instead we show all
+        # classes grouped. For simplicity, show all promotable students across
+        # all classes with their destination, still using a single form.
+        # The from_class is derived from each student's class_name on submit.
+        #
+        # However, the form only supports one from_class per submission, so we
+        # redirect admins to the per-class selector instead of a flat list.
+        # Build promotion_options for the dropdown (kept for admin use).
+        pass
+ 
+    # Promotion options dropdown (used only when promotion_students is empty,
+    # i.e. for admin users who select a class first).
+    promotion_options = []
+    if can_approve_promotions and not promotion_students:
         for from_class, to_class in CLASS_PROGRESSION.items():
             count = Student.objects.filter(class_name=from_class).count()
-            promotion_options.append({
-                'from_class': from_class,
-                'to_class': to_class,
-                'count': count,
-            })
-
+            if count:
+                promotion_options.append({
+                    'from_class': from_class,
+                    'to_class': to_class,
+                    'count': count,
+                })
+ 
     pending_promotion_requests = ClassPromotionRequest.objects.filter(
         status=ClassPromotionRequest.STATUS_PENDING
     ).select_related('requested_by')
     if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
         pending_promotion_requests = pending_promotion_requests.filter(from_class=profile.assigned_class)
-
+ 
     return render(request, 'grades/manage_students.html', {
         'students': students,
+        'promotion_students': promotion_students,
+        'promotion_from_class': promotion_from_class,
         'promotion_options': promotion_options,
         'pending_promotion_requests': pending_promotion_requests,
         'can_approve_promotions': can_approve_promotions,
     })
+ 
 
 
 @login_required
@@ -640,18 +667,22 @@ def delete_student(request, student_id):
 def promote_class(request):
     profile = getattr(request.user, 'profile', None)
     can_approve_promotions = _user_can_approve_promotions(request.user, profile)
+ 
     from_class = request.POST.get('from_class', '').strip()
-    confirmed = request.POST.get('confirm') == 'yes'
-    to_class = CLASS_PROGRESSION.get(from_class)
-
+    confirmed  = request.POST.get('confirm') == 'yes'
+    # Collect the individually-checked student PKs (may be empty if none ticked)
+    raw_pks = request.POST.getlist('student_pks')
+ 
     if not confirmed:
-        messages.error(request, 'Please confirm the promotion before continuing.')
+        messages.error(request, 'Please tick the confirmation checkbox before submitting.')
         return redirect('manage_students')
-
+ 
+    to_class = CLASS_PROGRESSION.get(from_class)
     if not to_class:
-        messages.error(request, 'Please select a class that has a configured next class.')
+        messages.error(request, 'The selected class does not have a configured next class.')
         return redirect('manage_students')
-
+ 
+    # Class teachers may only request promotion for their own assigned class.
     if (
         profile
         and profile.role == Profile.ROLE_CLASS_TEACHER
@@ -660,24 +691,44 @@ def promote_class(request):
     ):
         messages.error(request, 'You may only request promotion for your assigned class.')
         return redirect('manage_students')
-
-    student_count = Student.objects.filter(class_name=from_class).count()
+ 
+    # Parse and validate the student PKs
+    try:
+        student_pks = [int(pk) for pk in raw_pks if str(pk).isdigit()]
+    except (ValueError, TypeError):
+        student_pks = []
+ 
+    if not student_pks:
+        messages.error(request, 'Please select at least one student to promote.')
+        return redirect('manage_students')
+ 
+    # Confirm all selected PKs actually belong to from_class (security check)
+    valid_students = Student.objects.filter(pk__in=student_pks, class_name=from_class)
+    if valid_students.count() != len(student_pks):
+        messages.error(request, 'One or more selected students do not belong to the specified class.')
+        return redirect('manage_students')
+ 
+    # Prevent duplicate pending requests for the same class
     existing_request = ClassPromotionRequest.objects.filter(
         from_class=from_class,
         status=ClassPromotionRequest.STATUS_PENDING,
     ).first()
-
     if existing_request:
         messages.info(request, f'A promotion request for {from_class} is already pending admin approval.')
         return redirect('manage_students')
-
+ 
     ClassPromotionRequest.objects.create(
         from_class=from_class,
         to_class=to_class,
         requested_by=request.user,
-        student_count=student_count,
+        student_count=len(student_pks),
+        student_pks=student_pks,
     )
-    messages.success(request, f'Promotion request submitted for {student_count} student(s) in {from_class}. An admin must approve it before students are moved.')
+    messages.success(
+        request,
+        f'Promotion request submitted for {len(student_pks)} student(s) from {from_class} to {to_class}. '
+        f'An admin must approve it before students are moved.'
+    )
     return redirect('manage_students')
 
 
@@ -689,40 +740,54 @@ def approve_class_promotion(request, request_id):
     if not promotion_request:
         messages.error(request, 'Promotion request not found.')
         return redirect('manage_students')
-
+ 
     if promotion_request.status != ClassPromotionRequest.STATUS_PENDING:
         messages.info(request, 'This promotion request has already been reviewed.')
         return redirect('manage_students')
-
+ 
     from_class = promotion_request.from_class
-    to_class = promotion_request.to_class
-
+    to_class   = promotion_request.to_class
+    student_pks = promotion_request.student_pks or []
+ 
     with transaction.atomic():
         promotion_request = ClassPromotionRequest.objects.select_for_update().get(pk=promotion_request.pk)
         if promotion_request.status != ClassPromotionRequest.STATUS_PENDING:
             messages.info(request, 'This promotion request has already been reviewed.')
             return redirect('manage_students')
-
-        students = list(
-            Student.objects.select_for_update()
-            .filter(class_name=from_class)
-            .order_by('last_name', 'first_name')
-        )
+ 
+        if student_pks:
+            # Promote only the individually-selected students
+            students = list(
+                Student.objects.select_for_update()
+                .filter(pk__in=student_pks, class_name=from_class)
+                .order_by('last_name', 'first_name')
+            )
+        else:
+            # Legacy path: older requests that stored no individual PKs
+            students = list(
+                Student.objects.select_for_update()
+                .filter(class_name=from_class)
+                .order_by('last_name', 'first_name')
+            )
+ 
         for student in students:
             student.class_name = to_class
             student.save(update_fields=['class_name'])
             enroll_student_in_standard_subjects(student, to_class, clear_existing=True)
-        promotion_request.status = ClassPromotionRequest.STATUS_APPROVED
-        promotion_request.approved_by = request.user
-        promotion_request.reviewed_at = timezone.now()
+ 
+        promotion_request.status       = ClassPromotionRequest.STATUS_APPROVED
+        promotion_request.approved_by  = request.user
+        promotion_request.reviewed_at  = timezone.now()
         promotion_request.student_count = len(students)
         promotion_request.save(update_fields=['status', 'approved_by', 'reviewed_at', 'student_count'])
-
+ 
     if students:
-        messages.success(request, f'Approved and promoted {len(students)} student(s) from {from_class} to {to_class}.')
+        messages.success(
+            request,
+            f'Approved and promoted {len(students)} student(s) from {from_class} to {to_class}.'
+        )
     else:
-        messages.info(request, f'Approved the request, but no students were found in {from_class}.')
-    return redirect('manage_students')
+        messages.info(request, f'Approved the request, but no matching students were found in {from_class}.')
 
 
 @login_required
