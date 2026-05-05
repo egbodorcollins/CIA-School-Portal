@@ -49,6 +49,52 @@ def _user_can_approve_promotions(user, profile=None):
     )
 
 
+TERM_ORDER = {'first_term': 1, 'second_term': 2, 'third_term': 3, 'session': 4}
+
+
+def _term_display(term):
+    return dict(TERM_CHOICES).get(term, term.replace('_', ' ').title())
+
+
+def _current_period():
+    return TermSetting.get_current_period()
+
+
+def _student_result_period(student, requested_year=None, requested_term=None):
+    grade_periods = Grade.objects.filter(student=student).values_list('academic_year', 'term')
+    behavior_periods = BehavioralGrade.objects.filter(student=student).values_list('academic_year', 'term')
+    periods = sorted(
+        set(grade_periods).union(set(behavior_periods)),
+        key=lambda item: (item[0], TERM_ORDER.get(item[1], 0)),
+        reverse=True,
+    )
+
+    requested_year_periods = [period for period in periods if period[0] == requested_year]
+
+    if periods and (requested_year, requested_term) in periods:
+        selected_year, selected_term = requested_year, requested_term
+    elif requested_year_periods:
+        selected_year, selected_term = requested_year_periods[0]
+    elif periods:
+        selected_year, selected_term = periods[0]
+    else:
+        selected_year, selected_term = _current_period()
+
+    academic_year_options = sorted({year for year, _term in periods} or {selected_year}, reverse=True)
+    term_options = [
+        {
+            'value': term,
+            'label': _term_display(term),
+        }
+        for year, term in periods
+        if year == selected_year
+    ]
+    if not term_options:
+        term_options = [{'value': selected_term, 'label': _term_display(selected_term)}]
+
+    return selected_year, selected_term, academic_year_options, term_options
+
+
 class RateLimitedLoginView(LoginView):
     template_name = 'grades/login.html'
     redirect_authenticated_user = True
@@ -285,7 +331,7 @@ def teacher_dashboard(request):
 @teacher_or_admin_required
 def class_analytics(request):
     profile = getattr(request.user, 'profile', None)
-    current_term = TermSetting.get_current_term()
+    current_academic_year, current_term = _current_period()
     term_labels = dict(TERM_CHOICES)
     academic_terms = [term for term, _label in TERM_CHOICES if term != 'session']
     if current_term not in academic_terms:
@@ -321,7 +367,7 @@ def class_analytics(request):
         selected_class = class_options[0]
 
     class_grades = Grade.objects.filter(student__class_name=selected_class).select_related('student', 'subject')
-    current_grades = class_grades.filter(term=current_term)
+    current_grades = class_grades.filter(academic_year=current_academic_year, term=current_term)
 
     subject_averages = list(
         current_grades.values('subject__name', 'subject__code')
@@ -364,6 +410,7 @@ def class_analytics(request):
     raw_term_averages = {
         row['term']: row
         for row in class_grades.filter(term__in=academic_terms)
+        .filter(academic_year=current_academic_year)
         .values('term')
         .annotate(average=Avg('marks'), entries=Count('id'))
     }
@@ -388,6 +435,7 @@ def class_analytics(request):
         'selected_class': selected_class,
         'current_term': current_term,
         'current_term_display': term_labels.get(current_term, current_term.replace('_', ' ').title()),
+        'current_academic_year': current_academic_year,
         'subject_averages': subject_averages,
         'grade_distribution': grade_distribution,
         'top_students': top_students,
@@ -408,7 +456,7 @@ def set_current_term(request):
 @login_required
 @teacher_or_admin_required
 def enter_academic_scores(request):
-    current_term = TermSetting.get_current_term()
+    current_academic_year, current_term = _current_period()
     profile = getattr(request.user, 'profile', None)
 
     # Prepare students available for selection based on user's role
@@ -447,7 +495,8 @@ def enter_academic_scores(request):
             grade, created = Grade.objects.update_or_create(
                 student=data['student'],
                 subject=data['subject'],
-                term=data['term'],
+                academic_year=current_academic_year,
+                term=current_term,
                 defaults={
                     'homework': data.get('homework', 0),
                     'class_work': data.get('class_work', 0),
@@ -474,7 +523,7 @@ def enter_academic_scores(request):
                 return redirect(f"{request.path}?student={selected_student.pk}")
             return redirect('enter_academic_scores')
     else:
-        form = GradeEntryForm(initial={'term': current_term})
+        form = GradeEntryForm()
         if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
             form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
         if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
@@ -505,9 +554,9 @@ def enter_academic_scores(request):
 
     # Show only selected student's grades when a student is selected
     if selected_student:
-        grades = Grade.objects.filter(term=current_term, student=selected_student).select_related('student', 'subject').order_by('subject__name')
+        grades = Grade.objects.filter(academic_year=current_academic_year, term=current_term, student=selected_student).select_related('student', 'subject').order_by('subject__name')
     else:
-        grades = Grade.objects.filter(term=current_term).select_related('student', 'subject').order_by('student__last_name', 'subject__name')
+        grades = Grade.objects.filter(academic_year=current_academic_year, term=current_term).select_related('student', 'subject').order_by('student__last_name', 'subject__name')
         if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
             grades = grades.filter(student__class_name=profile.assigned_class)
         if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
@@ -517,6 +566,8 @@ def enter_academic_scores(request):
         'form': form,
         'grades': grades,
         'current_term': current_term,
+        'current_academic_year': current_academic_year,
+        'current_term_display': _term_display(current_term),
         'students': students_for_select,
         'selected_student': selected_student,
     })
@@ -525,7 +576,7 @@ def enter_academic_scores(request):
 @login_required
 @class_teacher_or_admin_required
 def enter_behavioral_assessments(request):
-    current_term = TermSetting.get_current_term()
+    current_academic_year, current_term = _current_period()
     profile = getattr(request.user, 'profile', None)
 
     if request.method == 'POST':
@@ -537,7 +588,8 @@ def enter_behavioral_assessments(request):
             data = form.cleaned_data
             bg, created = BehavioralGrade.objects.update_or_create(
                 student=data['student'],
-                term=data['term'],
+                academic_year=current_academic_year,
+                term=current_term,
                 defaults={
                     'punctuality': data['punctuality'],
                     'relationship_with_staff': data['relationship_with_staff'],
@@ -564,11 +616,11 @@ def enter_behavioral_assessments(request):
             messages.success(request, 'Behavioral assessment saved successfully.')
             return redirect('enter_behavioral_assessments')
     else:
-        form = BehavioralGradeEntryForm(initial={'term': current_term})
+        form = BehavioralGradeEntryForm()
         if profile and profile.role == 'class_teacher' and profile.assigned_class:
             form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
 
-    reports = BehavioralGrade.objects.filter(term=current_term).select_related('student').order_by('student__last_name')
+    reports = BehavioralGrade.objects.filter(academic_year=current_academic_year, term=current_term).select_related('student').order_by('student__last_name')
     if profile and profile.role == 'class_teacher' and profile.assigned_class:
         reports = reports.filter(student__class_name=profile.assigned_class)
 
@@ -576,6 +628,8 @@ def enter_behavioral_assessments(request):
         'form': form,
         'reports': reports,
         'current_term': current_term,
+        'current_academic_year': current_academic_year,
+        'current_term_display': _term_display(current_term),
     })
 
 
@@ -789,6 +843,8 @@ def approve_class_promotion(request, request_id):
     else:
         messages.info(request, f'Approved the request, but no matching students were found in {from_class}.')
 
+    return redirect('manage_students')
+
 
 @login_required
 def student_dashboard(request):
@@ -799,10 +855,27 @@ def student_dashboard(request):
     student = None
     grades = []
     behavioral_grades = []
+    selected_academic_year = request.GET.get('academic_year')
+    selected_term = request.GET.get('term')
+    academic_year_options = []
+    term_options = []
     try:
         student = Student.objects.get(student_id=request.user.username)
-        grades = Grade.objects.filter(student=student).select_related('subject')
-        behavioral_grades = BehavioralGrade.objects.filter(student=student).order_by('-term')
+        selected_academic_year, selected_term, academic_year_options, term_options = _student_result_period(
+            student,
+            selected_academic_year,
+            selected_term,
+        )
+        grades = Grade.objects.filter(
+            student=student,
+            academic_year=selected_academic_year,
+            term=selected_term,
+        ).select_related('subject').order_by('subject__name')
+        behavioral_grades = BehavioralGrade.objects.filter(
+            student=student,
+            academic_year=selected_academic_year,
+            term=selected_term,
+        ).order_by('-term')
     except Student.DoesNotExist:
         messages.info(request, 'No student profile was found for your username. Please contact administration.')
 
@@ -810,6 +883,11 @@ def student_dashboard(request):
         'student': student,
         'grades': grades,
         'behavioral_grades': behavioral_grades,
+        'selected_academic_year': selected_academic_year,
+        'selected_term': selected_term,
+        'selected_term_display': _term_display(selected_term) if selected_term else '',
+        'academic_year_options': academic_year_options,
+        'term_options': term_options,
     })
 
 
@@ -822,24 +900,34 @@ def report_card_pdf(request):
         messages.error(request, 'Unable to generate report: student profile not found.')
         return redirect('student_dashboard')
 
-    grades = Grade.objects.filter(student=student).select_related('subject')
-    behavioral_grades = BehavioralGrade.objects.filter(student=student).order_by('-term')
-    latest_term = 'first_term'
-    term_order = {'first_term': 1, 'second_term': 2, 'third_term': 3}
-    term_candidates = [grade.term for grade in grades] + [bg.term for bg in behavioral_grades]
-    if term_candidates:
-        latest_term = max(term_candidates, key=lambda t: term_order.get(t, 0))
-
-    term_display = dict(Grade.TERM_CHOICES).get(latest_term, latest_term.replace('_', ' ').title())
-    term_display = TERM_MAP.get(latest_term, latest_term.replace('_', ' ').title())
-    selected_grades = [grade for grade in grades if grade.term == latest_term]
-    selected_behavior = behavioral_grades.filter(term=latest_term).first()
+    selected_academic_year, selected_term, _year_options, _term_options = _student_result_period(
+        student,
+        request.GET.get('academic_year'),
+        request.GET.get('term'),
+    )
+    term_display = _term_display(selected_term)
+    selected_grades = list(
+        Grade.objects.filter(
+            student=student,
+            academic_year=selected_academic_year,
+            term=selected_term,
+        ).select_related('subject').order_by('subject__name')
+    )
+    selected_behavior = BehavioralGrade.objects.filter(
+        student=student,
+        academic_year=selected_academic_year,
+        term=selected_term,
+    ).first()
 
     class_students = Student.objects.filter(class_name=student.class_name)
     class_count = class_students.count()
 
     def average_score_for_student(student_obj):
-        student_grades = Grade.objects.filter(student=student_obj, term=latest_term)
+        student_grades = Grade.objects.filter(
+            student=student_obj,
+            academic_year=selected_academic_year,
+            term=selected_term,
+        )
         if not student_grades:
             return 0
         return sum(g.marks for g in student_grades) / len(student_grades)
@@ -852,13 +940,14 @@ def report_card_pdf(request):
     response = HttpResponse(content_type='application/pdf')
     # Keep the download filename filesystem-friendly because student IDs contain slashes.
     safe_student_id = student.student_id.replace('/', '-')
-    response['Content-Disposition'] = f'attachment; filename="{safe_student_id}_{latest_term}_report.pdf"'
+    safe_year = selected_academic_year.replace('/', '-')
+    response['Content-Disposition'] = f'attachment; filename="{safe_student_id}_{safe_year}_{selected_term}_report.pdf"'
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=35, leftMargin=35, topMargin=35, bottomMargin=35)
     styles = getSampleStyleSheet()
     heading = Paragraph('CORINAISA INTERNATIONAL ACADEMY', ParagraphStyle('Title', parent=styles['Title'], alignment=1, fontSize=18, leading=22, spaceAfter=10))
-    subtitle = Paragraph(f'<b>{term_display.upper()} REPORT</b>', ParagraphStyle('Subtitle', parent=styles['Heading2'], alignment=1, fontSize=14, textColor=colors.red, spaceAfter=14))
+    subtitle = Paragraph(f'<b>{selected_academic_year} {term_display.upper()} REPORT</b>', ParagraphStyle('Subtitle', parent=styles['Heading2'], alignment=1, fontSize=14, textColor=colors.red, spaceAfter=14))
 
     next_term_begin = timezone.now().date() + timedelta(days=90)
     header_data = [

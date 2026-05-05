@@ -2016,3 +2016,49 @@ Traceback (most recent call last):
            ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^
 django.db.utils.OperationalError: no such table: grades_classpromotionrequest
 "GET /teacher/manage-students/ HTTP/1.1" 500 259230
+Internal Server Error: /teacher/manage-students/promote-class/
+Traceback (most recent call last):
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\venv\Lib\site-packages\django\core\handlers\base.py", line 198, in _get_response
+    response = wrapped_callback(request, *callback_args, **callback_kwargs)
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\venv\Lib\site-packages\sentry_sdk\integrations\django\views.py", line 87, in sentry_wrapped_callback
+    return callback(request, *args, **kwargs)
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\venv\Lib\site-packages\django\contrib\auth\decorators.py", line 59, in _view_wrapper
+    return view_func(request, *args, **kwargs)
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\venv\Lib\site-packages\django\views\decorators\http.py", line 64, in inner
+    return func(request, *args, **kwargs)
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\grades\views.py", line 768, in promote_class
+    ClassPromotionRequest.objects.create(
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        from_class=from_class,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        student_pks=student_pks,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\venv\Lib\site-packages\django\db\models\manager.py", line 87, in manager_method
+    return getattr(self.get_queryset(), name)(*args, **kwargs)
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\venv\Lib\site-packages\django\db\models\query.py", line 667, in create
+    obj = self.model(**kwargs)
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\venv\Lib\site-packages\django\db\models\base.py", line 590, in __init__
+    raise TypeError(
+    ...<2 lines>...
+    )
+TypeError: ClassPromotionRequest() got unexpected keyword arguments: 'student_pks'
+Internal Server Error: /teacher/manage-students/promotions/1/approve/
+Traceback (most recent call last):
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\venv\Lib\site-packages\django\core\handlers\exception.py", line 55, in inner
+    response = get_response(request)
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\venv\Lib\site-packages\django\core\handlers\base.py", line 205, in _get_response
+    self.check_response(response, callback)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\cegbo\Documents\CIA\CIA School Portal\venv\Lib\site-packages\django\core\handlers\base.py", line 333, in check_response
+    raise ValueError(
+    ...<2 lines>...
+    )
+ValueError: The view grades.views.approve_class_promotion didn't return an HttpResponse object. It returned None instead.

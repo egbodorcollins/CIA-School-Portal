@@ -1,3 +1,6 @@
+import re
+
+from django.core.exceptions import ValidationError
 from django.db import IntegrityError, models, transaction
 from django.core.validators import MinValueValidator, MaxValueValidator
 from datetime import datetime
@@ -17,6 +20,25 @@ TERM_MAP = {
     '2': 'Second Term',
     '3': 'Third Term',
 }
+
+
+ACADEMIC_YEAR_RE = re.compile(r'^\d{4}/\d{4}$')
+
+
+def default_academic_year():
+    year = datetime.today().year
+    # Academic sessions are stored by the year they start, e.g. 2025/2026.
+    start_year = year if datetime.today().month >= 9 else year - 1
+    return f'{start_year}/{start_year + 1}'
+
+
+def validate_academic_year(value):
+    if not ACADEMIC_YEAR_RE.match(value or ''):
+        raise ValidationError('Use the format YYYY/YYYY, for example 2025/2026.')
+
+    start, end = [int(part) for part in value.split('/')]
+    if end != start + 1:
+        raise ValidationError('Academic year must cover two consecutive years, for example 2025/2026.')
 
 
 class Student(models.Model):
@@ -63,6 +85,12 @@ class Subject(models.Model):
 
 
 class TermSetting(models.Model):
+    current_academic_year = models.CharField(
+        max_length=9,
+        default=default_academic_year,
+        validators=[validate_academic_year],
+        help_text='Set the active academic year, e.g. 2025/2026'
+    )
     current_term = models.CharField(
         max_length=20,
         choices=TERM_CHOICES,
@@ -84,12 +112,25 @@ class TermSetting(models.Model):
         term_setting = cls.objects.order_by('-updated_at').first()
         return term_setting.current_term if term_setting else 'first_term'
 
+    @classmethod
+    def get_current_academic_year(cls):
+        term_setting = cls.objects.order_by('-updated_at').first()
+        return term_setting.current_academic_year if term_setting else default_academic_year()
+
+    @classmethod
+    def get_current_period(cls):
+        term_setting = cls.objects.order_by('-updated_at').first()
+        if term_setting:
+            return term_setting.current_academic_year, term_setting.current_term
+        return default_academic_year(), 'first_term'
+
     def __str__(self):
-        return f'Current Term: {self.get_current_term_display()}'
+        return f'{self.current_academic_year} - {self.get_current_term_display()}'
 
 
 class Grade(models.Model):
     """Model for storing student grades for each subject"""
+    TERM_CHOICES = TERM_CHOICES
     GRADE_CHOICES = [
         ('A', 'A (90-100)'),
         ('B', 'B (80-89)'),
@@ -142,6 +183,12 @@ class Grade(models.Model):
         editable=False,
     )
     letter_grade = models.CharField(max_length=2, choices=GRADE_CHOICES)
+    academic_year = models.CharField(
+        max_length=9,
+        default=default_academic_year,
+        validators=[validate_academic_year],
+        help_text='Academic year for this grade, e.g. 2025/2026'
+    )
     term = models.CharField(
         max_length=20,
         choices=TERM_CHOICES,
@@ -153,19 +200,19 @@ class Grade(models.Model):
     remarks = models.TextField(blank=True, null=True)
     
     class Meta:
-        ordering = ['-term', 'student', 'subject']
+        ordering = ['-academic_year', '-term', 'student', 'subject']
         verbose_name = "Grade"
         verbose_name_plural = "Grades"
-        # Ensure one grade per student per subject per term
-        unique_together = ['student', 'subject', 'term']
+        # Ensure one grade per student per subject per academic period.
+        unique_together = ['student', 'subject', 'academic_year', 'term']
         indexes = [
-            models.Index(fields=['student', 'term']),
-            models.Index(fields=['subject', 'term']),
+            models.Index(fields=['student', 'academic_year', 'term']),
+            models.Index(fields=['subject', 'academic_year', 'term']),
             models.Index(fields=['letter_grade']),
         ]
     
     def __str__(self):
-        return f"{self.student} - {self.subject} ({self.term}): {self.letter_grade}"
+        return f"{self.student} - {self.subject} ({self.academic_year} {self.term}): {self.letter_grade}"
     
     def save(self, *args, **kwargs):
         """Compute total from components, then assign letter grade."""
@@ -209,6 +256,12 @@ class BehavioralGrade(models.Model):
     ]
     
     student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='behavioral_grades')
+    academic_year = models.CharField(
+        max_length=9,
+        default=default_academic_year,
+        validators=[validate_academic_year],
+        help_text='Academic year for this behavioral assessment, e.g. 2025/2026'
+    )
     term = models.CharField(
         max_length=20,
         choices=TERM_CHOICES,
@@ -235,17 +288,17 @@ class BehavioralGrade(models.Model):
     remarks = models.TextField(blank=True, null=True)
     
     class Meta:
-        ordering = ['-term', 'student']
+        ordering = ['-academic_year', '-term', 'student']
         verbose_name = "Behavioral Grade"
         verbose_name_plural = "Behavioral Grades"
-        # Ensure one behavioral assessment per student per term
-        unique_together = ['student', 'term']
+        # Ensure one behavioral assessment per student per academic period.
+        unique_together = ['student', 'academic_year', 'term']
         indexes = [
-            models.Index(fields=['student', 'term']),
+            models.Index(fields=['student', 'academic_year', 'term']),
         ]
     
     def __str__(self):
-        return f"{self.student} - Behavioral Assessment ({self.term})"
+        return f"{self.student} - Behavioral Assessment ({self.academic_year} {self.term})"
 
 
 class Profile(models.Model):
@@ -292,6 +345,11 @@ class ClassPromotionRequest(models.Model):
     requested_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='promotion_requests')
     approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_promotion_requests')
     student_count = models.PositiveIntegerField(default=0)
+    student_pks = models.JSONField(
+        default=list,
+        blank=True,
+        help_text='Primary keys of individual students selected for promotion',
+    )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
     reviewed_at = models.DateTimeField(blank=True, null=True)

@@ -1,7 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from grades.models import Student, Subject, Grade
+from grades.models import Student, Subject, Grade, TermSetting
 from grades.subject_map import STANDARD_SUBJECTS, CLASS_NAME_BY_CODE
 
 
@@ -10,9 +10,11 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument('--class', dest='class_code', help='Optional class code to limit processing (e.g., B1)')
+        parser.add_argument('--academic-year', dest='academic_year', help='Academic year to process (e.g., 2025/2026). Defaults to the active year.')
 
     def handle(self, *args, **options):
         class_code = options.get('class_code')
+        academic_year = options.get('academic_year') or TermSetting.get_current_academic_year()
         keys = [class_code] if class_code else list(STANDARD_SUBJECTS.keys())
 
         processed_students = 0
@@ -52,7 +54,7 @@ class Command(BaseCommand):
                             subj = Subject.objects.get(code=code)
                         except Subject.DoesNotExist:
                             continue
-                        grade = Grade.objects.filter(student=student, subject=subj).first()
+                        grade = Grade.objects.filter(student=student, subject=subj, academic_year=academic_year).first()
                         if grade:
                             marks.append(grade.marks)
 
@@ -76,6 +78,7 @@ class Command(BaseCommand):
                         Grade.objects.update_or_create(
                             student=student,
                             subject=session_subject,
+                            academic_year=academic_year,
                             term='session',
                             defaults=defaults
                         )

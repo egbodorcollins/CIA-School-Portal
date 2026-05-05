@@ -4,7 +4,7 @@
 <div class="page-shell">
     <div class="dashboard-card">
         <h2>Enter Academic Scores</h2>
-        <p>Use this page to record or update grades for {{ current_term|capfirst|replace:"_ " }}.</p>
+        <p>Use this page to record or update grades for {{ current_academic_year }} {{ current_term_display }}.</p>
         <div class="teacher-form-card">
             {% comment %} Student selection (select first, then subjects are limited ) {% endcomment %}
             <div style="margin-bottom:12px">
@@ -78,9 +78,8 @@
                     {% for error in form.exam.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
                 <div class="field-row">
-                    {{ form.term.label_tag }}
-                    {{ form.term }}
-                    {% for error in form.term.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                    <label>Academic Period</label>
+                    <div>{{ current_academic_year }} {{ current_term_display }}</div>
                 </div>
                 <div class="field-row">
                     {{ form.remarks.label_tag }}
@@ -91,7 +90,7 @@
             </form>
         </div>
                 <div class="grades-table" style="margin-top: 28px;">
-            <h3>Grades for {{ current_term|capfirst|replace:"_ " }}</h3>
+            <h3>Grades for {{ current_academic_year }} {{ current_term_display }}</h3>
             {% if grades %}
                 <table>
                             <thead>

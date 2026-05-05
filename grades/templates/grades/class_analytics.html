@@ -5,7 +5,7 @@
         <div class="analytics-header">
             <div>
                 <h2>Class Analytics</h2>
-                <p>Performance summary for {{ selected_class|default:'No class selected' }} in {{ current_term_display }}.</p>
+                <p>Performance summary for {{ selected_class|default:'No class selected' }} in {{ current_academic_year }} {{ current_term_display }}.</p>
             </div>
             {% if class_options|length > 1 %}
                 <form method="get" class="analytics-class-form">

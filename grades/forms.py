@@ -205,7 +205,7 @@ class GradeEntryForm(forms.ModelForm):
         fields = [
             'student', 'subject',
             'homework', 'class_work', 'project', 'first_test', 'midterm_test', 'exam',
-            'term', 'remarks'
+            'remarks'
         ]
         widgets = {
             'remarks': forms.Textarea(attrs={'rows': 3}),
@@ -231,7 +231,7 @@ class BehavioralGradeEntryForm(forms.ModelForm):
     class Meta:
         model = BehavioralGrade
         fields = [
-            'student', 'term', 'punctuality', 'relationship_with_staff', 'politeness',
+            'student', 'punctuality', 'relationship_with_staff', 'politeness',
             'neatness', 'co_operation', 'obedience', 'attentiveness',
             'adjustment_in_school', 'relationship_with_peers', 'times_present', 'remarks'
         ]
@@ -249,7 +249,7 @@ class BehavioralGradeEntryForm(forms.ModelForm):
 class TermSettingForm(forms.ModelForm):
     class Meta:
         model = TermSetting
-        fields = ['current_term']
+        fields = ['current_academic_year', 'current_term']
 
 
 class TeacherCreationForm(forms.Form):
