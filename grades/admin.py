@@ -39,8 +39,8 @@ class SubjectAdmin(admin.ModelAdmin):
 
 @admin.register(TermSetting)
 class TermSettingAdmin(admin.ModelAdmin):
-    list_display = ['current_term', 'updated_at']
-    fields = ['current_term', 'updated_at']
+    list_display = ['current_academic_year', 'current_term', 'updated_at']
+    fields = ['current_academic_year', 'current_term', 'updated_at']
     readonly_fields = ['updated_at']
     ordering = ['-updated_at']
 
@@ -103,13 +103,13 @@ class ClassPromotionRequestAdmin(admin.ModelAdmin):
 
 @admin.register(Grade)
 class GradeAdmin(admin.ModelAdmin):
-    list_display = ['student', 'subject', 'marks', 'letter_grade', 'term']
-    list_filter = ['term', 'letter_grade', 'subject']
+    list_display = ['student', 'subject', 'academic_year', 'term', 'marks', 'letter_grade']
+    list_filter = ['academic_year', 'term', 'letter_grade', 'subject']
     search_fields = ['student__first_name', 'student__last_name', 'student__student_id', 'subject__code']
     readonly_fields = ['marks', 'letter_grade', 'date_recorded', 'last_updated']
     fieldsets = (
         ('Student & Subject', {
-            'fields': ('student', 'subject', 'term')
+            'fields': ('student', 'subject', 'academic_year', 'term')
         }),
         ('Grades', {
             'fields': ('marks', 'letter_grade')
@@ -122,18 +122,18 @@ class GradeAdmin(admin.ModelAdmin):
     
     def get_list_display(self, request):
         """Customize list display based on context"""
-        return ['student', 'subject', 'marks', 'letter_grade', 'term', 'last_updated']
+        return ['student', 'subject', 'academic_year', 'term', 'marks', 'letter_grade', 'last_updated']
 
 
 @admin.register(BehavioralGrade)
 class BehavioralGradeAdmin(admin.ModelAdmin):
-    list_display = ['student', 'term', 'punctuality', 'relationship_with_staff', 'politeness', 'times_present']
-    list_filter = ['term', 'punctuality', 'relationship_with_staff', 'politeness', 'neatness']
+    list_display = ['student', 'academic_year', 'term', 'punctuality', 'relationship_with_staff', 'politeness', 'times_present']
+    list_filter = ['academic_year', 'term', 'punctuality', 'relationship_with_staff', 'politeness', 'neatness']
     search_fields = ['student__first_name', 'student__last_name', 'student__student_id']
     readonly_fields = ['date_recorded', 'last_updated']
     fieldsets = (
         ('Student & Term', {
-            'fields': ('student', 'term')
+            'fields': ('student', 'academic_year', 'term')
         }),
         ('Behavioral Traits', {
             'fields': (

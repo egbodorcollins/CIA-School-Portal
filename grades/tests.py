@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
-from .models import ClassPromotionRequest, Profile, Student, Subject, TermSetting
+from .models import ClassPromotionRequest, Grade, Profile, Student, Subject, TermSetting
 
 
 class StudentRegistrationTests(TestCase):
@@ -178,6 +178,32 @@ class PortalRenderingTests(TestCase):
         self.assertContains(response, 'Times Present')
         self.assertNotContains(response, 'behavioral_score')
 
+    def test_class_analytics_renders_aggregate_sections(self):
+        TermSetting.objects.create(current_term='first_term')
+        math = Subject.objects.create(code='MAT B51', name='Mathematics')
+        english = Subject.objects.create(code='ENG B51', name='English Studies')
+        ada = Student.objects.create(student_id='CIA/B52026/0001', first_name='Ada', last_name='King', class_name='Basic 5')
+        ben = Student.objects.create(student_id='CIA/B52026/0002', first_name='Ben', last_name='Stone', class_name='Basic 5')
+        Grade.objects.create(student=ada, subject=math, term='first_term', homework=5, class_work=10, project=5, first_test=10, midterm_test=10, exam=55)
+        Grade.objects.create(student=ada, subject=english, term='first_term', homework=5, class_work=9, project=5, first_test=9, midterm_test=9, exam=50)
+        Grade.objects.create(student=ben, subject=math, term='first_term', homework=3, class_work=7, project=4, first_test=7, midterm_test=7, exam=42)
+        Grade.objects.create(student=ben, subject=english, term='second_term', homework=2, class_work=6, project=3, first_test=6, midterm_test=6, exam=35)
+        self.client.login(username='teacher', password='pass12345')
+
+        response = self.client.get(reverse('class_analytics'), {'class': 'Basic 5'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'grades/class_analytics.html')
+        self.assertContains(response, 'Class Analytics')
+        self.assertContains(response, 'Subject Averages')
+        self.assertContains(response, 'Grade Distribution')
+        self.assertContains(response, 'Top 5 Students')
+        self.assertContains(response, 'Bottom 5 Students')
+        self.assertContains(response, 'Current Term vs Previous Terms')
+        self.assertContains(response, 'Mathematics')
+        self.assertContains(response, 'Ada King')
+        self.assertContains(response, 'Ben Stone')
+
 
 class DeleteStudentTests(TestCase):
     def setUp(self):
@@ -221,14 +247,17 @@ class PromoteClassTests(TestCase):
         self.staff_user = User.objects.create_user(username='admin', password='pass12345')
         self.staff_user.is_staff = True
         self.staff_user.save()
+ 
         self.teacher_user = User.objects.create_user(username='basic5teacher', password='pass12345')
         self.teacher_user.profile.role = Profile.ROLE_CLASS_TEACHER
         self.teacher_user.profile.assigned_class = 'Basic 5'
         self.teacher_user.profile.save()
+ 
         TermSetting.objects.create(current_term='first_term')
         self.old_subject = Subject.objects.create(code='ENG B51', name='English Studies')
         self.new_subject = Subject.objects.create(code='ENG B61', name='English Studies')
         self.second_new_subject = Subject.objects.create(code='MAT B61', name='Mathematics')
+ 
         self.student = Student.objects.create(
             student_id='CIA/B52026/0001',
             first_name='John',
@@ -236,36 +265,63 @@ class PromoteClassTests(TestCase):
             class_name='Basic 5',
         )
         self.student.subjects.add(self.old_subject)
-
+ 
+        # A second student who will NOT be selected for promotion
+        self.student2 = Student.objects.create(
+            student_id='CIA/B52026/0002',
+            first_name='Jane',
+            last_name='Fail',
+            class_name='Basic 5',
+        )
+        self.student2.subjects.add(self.old_subject)
+ 
     def test_promote_class_requires_post(self):
         self.client.login(username='admin', password='pass12345')
-
+ 
         response = self.client.get(reverse('promote_class'))
-
+ 
         self.assertEqual(response.status_code, 405)
         self.student.refresh_from_db()
         self.assertEqual(self.student.class_name, 'Basic 5')
-
+ 
     def test_promote_class_requires_confirmation(self):
         self.client.login(username='basic5teacher', password='pass12345')
-
-        response = self.client.post(reverse('promote_class'), data={'from_class': 'Basic 5'})
-
+ 
+        response = self.client.post(reverse('promote_class'), data={
+            'from_class': 'Basic 5',
+            'student_pks': [self.student.pk],
+            # 'confirm' intentionally omitted
+        })
+ 
         self.assertEqual(response.status_code, 302)
         self.student.refresh_from_db()
         self.assertEqual(self.student.class_name, 'Basic 5')
-        self.assertEqual(list(self.student.subjects.values_list('code', flat=True)), ['ENG B51'])
         self.assertFalse(ClassPromotionRequest.objects.exists())
-
-    def test_class_teacher_requests_assigned_class_promotion(self):
+ 
+    def test_promote_class_requires_at_least_one_student(self):
         self.client.login(username='basic5teacher', password='pass12345')
-
+ 
         response = self.client.post(reverse('promote_class'), data={
             'from_class': 'Basic 5',
             'confirm': 'yes',
+            # no student_pks
         })
-
+ 
         self.assertEqual(response.status_code, 302)
+        self.assertFalse(ClassPromotionRequest.objects.exists())
+ 
+    def test_class_teacher_requests_selected_students_promotion(self):
+        self.client.login(username='basic5teacher', password='pass12345')
+ 
+        # Teacher selects only student1 (student2 failed)
+        response = self.client.post(reverse('promote_class'), data={
+            'from_class': 'Basic 5',
+            'confirm': 'yes',
+            'student_pks': [self.student.pk],
+        })
+ 
+        self.assertEqual(response.status_code, 302)
+        # Students not moved yet — request is pending
         self.student.refresh_from_db()
         self.assertEqual(self.student.class_name, 'Basic 5')
         request = ClassPromotionRequest.objects.get()
@@ -273,47 +329,83 @@ class PromoteClassTests(TestCase):
         self.assertEqual(request.to_class, 'Basic 6')
         self.assertEqual(request.status, ClassPromotionRequest.STATUS_PENDING)
         self.assertEqual(request.student_count, 1)
-
+        self.assertIn(self.student.pk, request.student_pks)
+        self.assertNotIn(self.student2.pk, request.student_pks)
+ 
     def test_class_teacher_cannot_request_another_class_promotion(self):
         self.client.login(username='basic5teacher', password='pass12345')
-
+ 
         response = self.client.post(reverse('promote_class'), data={
             'from_class': 'Basic 4',
             'confirm': 'yes',
+            'student_pks': [self.student.pk],
         })
-
+ 
         self.assertEqual(response.status_code, 302)
         self.assertFalse(ClassPromotionRequest.objects.exists())
-
-    def test_admin_approval_moves_students_and_resets_subjects(self):
+ 
+    def test_admin_approval_moves_only_selected_students(self):
+        """Only student1 was selected — student2 must stay in Basic 5."""
         promotion_request = ClassPromotionRequest.objects.create(
             from_class='Basic 5',
             to_class='Basic 6',
             requested_by=self.teacher_user,
             student_count=1,
+            student_pks=[self.student.pk],   # only student1
         )
         self.client.login(username='admin', password='pass12345')
-
+ 
         response = self.client.post(reverse('approve_class_promotion', args=[promotion_request.pk]))
-
+ 
         self.assertEqual(response.status_code, 302)
+ 
         self.student.refresh_from_db()
+        self.student2.refresh_from_db()
         promotion_request.refresh_from_db()
+ 
+        # student1 promoted
         self.assertEqual(self.student.class_name, 'Basic 6')
+        # student2 NOT promoted
+        self.assertEqual(self.student2.class_name, 'Basic 5')
+ 
         self.assertEqual(promotion_request.status, ClassPromotionRequest.STATUS_APPROVED)
         self.assertEqual(promotion_request.approved_by, self.staff_user)
-        self.assertCountEqual(self.student.subjects.values_list('code', flat=True), ['ENG B61', 'MAT B61'])
-        self.assertNotIn(self.old_subject, self.student.subjects.all())
-
+ 
+        # student1 re-enrolled in Basic 6 subjects
+        self.assertCountEqual(
+            self.student.subjects.values_list('code', flat=True),
+            ['ENG B61', 'MAT B61']
+        )
+        # student2's subjects unchanged
+        self.assertIn(self.old_subject, self.student2.subjects.all())
+ 
     def test_promote_class_rejects_class_without_progression(self):
         self.client.login(username='admin', password='pass12345')
-
+ 
         response = self.client.post(reverse('promote_class'), data={
             'from_class': 'SSS 3',
             'confirm': 'yes',
+            'student_pks': [self.student.pk],
         })
-
+ 
         self.assertEqual(response.status_code, 302)
         self.student.refresh_from_db()
         self.assertEqual(self.student.class_name, 'Basic 5')
         self.assertFalse(ClassPromotionRequest.objects.exists())
+ 
+    def test_duplicate_pending_request_is_rejected(self):
+        ClassPromotionRequest.objects.create(
+            from_class='Basic 5',
+            to_class='Basic 6',
+            requested_by=self.teacher_user,
+            student_count=1,
+            student_pks=[self.student.pk],
+        )
+        self.client.login(username='basic5teacher', password='pass12345')
+ 
+        self.client.post(reverse('promote_class'), data={
+            'from_class': 'Basic 5',
+            'confirm': 'yes',
+            'student_pks': [self.student.pk],
+        })
+ 

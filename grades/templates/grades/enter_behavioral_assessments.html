@@ -3,7 +3,7 @@
 <div class="page-shell">
     <div class="dashboard-card">
         <h2>Enter Behavioral Assessments</h2>
-        <p>Record student behavioral scores and comments for the current term.</p>
+        <p>Record student behavioral scores and comments for {{ current_academic_year }} {{ current_term_display }}.</p>
         <div class="teacher-form-card">
             <form method="post" novalidate>
                 {% csrf_token %}
@@ -14,9 +14,8 @@
                     {% for error in form.student.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
                 <div class="field-row">
-                    {{ form.term.label_tag }}
-                    {{ form.term }}
-                    {% for error in form.term.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                    <label>Academic Period</label>
+                    <div>{{ current_academic_year }} {{ current_term_display }}</div>
                 </div>
                 <div class="field-row">
                     {{ form.punctuality.label_tag }}

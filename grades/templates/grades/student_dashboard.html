@@ -12,20 +12,34 @@
                 <p><strong>State of Origin:</strong> {{ student.state_of_origin|default:'Not provided' }}</p>
                 <p><strong>Sport House:</strong> {{ student.sport_house|default:'Not provided' }}</p>
                 <p><strong>Club & Society:</strong> {{ student.club_and_society|default:'Not provided' }}</p>
-                <p><a class="button button-secondary" href="{% url 'report_card_pdf' %}" target="_blank">Download Report Card PDF</a></p>
+                <form method="get" class="student-select-form" style="margin-top: 16px;">
+                    <label for="academic-year-select">Result Year</label>
+                    <select id="academic-year-select" name="academic_year" onchange="this.form.submit()">
+                        {% for year in academic_year_options %}
+                            <option value="{{ year }}" {% if year == selected_academic_year %}selected{% endif %}>{{ year }}</option>
+                        {% endfor %}
+                    </select>
+                    <label for="term-select">Term</label>
+                    <select id="term-select" name="term">
+                        {% for term in term_options %}
+                            <option value="{{ term.value }}" {% if term.value == selected_term %}selected{% endif %}>{{ term.label }}</option>
+                        {% endfor %}
+                    </select>
+                    <button type="submit" class="button button-secondary">View Result</button>
+                </form>
+                <p><a class="button button-secondary" href="{% url 'report_card_pdf' %}?academic_year={{ selected_academic_year|urlencode }}&term={{ selected_term|urlencode }}" target="_blank">Download Selected Report PDF</a></p>
             </div>
             <div class="grades-table">
-                <h3>Academic Grades</h3>
+                <h3>Academic Grades - {{ selected_academic_year }} {{ selected_term_display }}</h3>
                 {% if grades %}
                     <table>
                         <thead>
-                            <tr><th>Subject</th><th>Term</th><th>Marks</th><th>Letter Grade</th></tr>
+                            <tr><th>Subject</th><th>Marks</th><th>Letter Grade</th></tr>
                         </thead>
                         <tbody>
                             {% for grade in grades %}
                                 <tr>
                                     <td>{{ grade.subject.name }}</td>
-                                    <td>{{ grade.term }}</td>
                                     <td>{{ grade.marks }}</td>
                                     <td>{{ grade.letter_grade }}</td>
                                 </tr>
@@ -37,11 +51,11 @@
                 {% endif %}
             </div>
             <div class="behavioral-report">
-                <h3>Behavioral Report Card</h3>
+                <h3>Behavioral Report Card - {{ selected_academic_year }} {{ selected_term_display }}</h3>
                 {% if behavioral_grades %}
                     {% for report in behavioral_grades %}
                         <div class="report-card">
-                            <h4>{{ report.term|capfirst }} Assessment</h4>
+                            <h4>{{ selected_academic_year }} {{ selected_term_display }} Assessment</h4>
                             <table>
                                 <tbody>
                                     <tr><th>Punctuality</th><td>{{ report.punctuality }}</td></tr>

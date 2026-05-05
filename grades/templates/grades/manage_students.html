@@ -4,41 +4,93 @@
     <div class="dashboard-card">
         <h2>Manage Students</h2>
         <p>Review and remove student records from the school portal. Deletions are permanent.</p>
-        {% if promotion_options %}
+
+        {# ── End-of-year promotion tool ───────────────────────────────────── #}
+        {% if promotion_students %}
             <div id="end-of-year-promotion" class="teacher-form-card" style="margin-bottom: 24px;">
                 <h3>End-of-Year Promotion</h3>
                 {% if can_approve_promotions %}
-                    <p class="helper-text">Submit a class promotion request, then approve pending requests below when the roster is ready.</p>
+                    <p class="helper-text">Select the students to promote, then submit the request. An admin must approve it before students are moved.</p>
                 {% else %}
-                    <p class="helper-text">Submit your class promotion request for admin approval. Students are not moved until an admin approves it.</p>
+                    <p class="helper-text">Select the students in your class who passed and should move to the next class. Submit the request for admin approval.</p>
                 {% endif %}
-                <form method="post" action="{% url 'promote_class' %}">
+
+                <form method="post" action="{% url 'promote_class' %}" id="promote-form">
                     {% csrf_token %}
-                    <div class="field-row">
-                        <label for="from-class">Class to promote:</label>
-                        <select id="from-class" name="from_class" required>
-                            <option value="">---------</option>
-                            {% for option in promotion_options %}
-                                <option value="{{ option.from_class }}">
-                                    {{ option.from_class }} to {{ option.to_class }} ({{ option.count }} student{{ option.count|pluralize }})
-                                </option>
-                            {% endfor %}
-                        </select>
+                    <input type="hidden" name="from_class" value="{{ promotion_from_class }}">
+
+                    {# Select-all checkbox header #}
+                    <div style="margin-bottom: 10px; display: flex; align-items: center; gap: 10px;">
+                        <input type="checkbox" id="select-all-students" style="width:auto;">
+                        <label for="select-all-students" style="font-weight: 600; cursor: pointer;">
+                            Select / Deselect All
+                        </label>
+                        <span id="selected-count" style="color: #6a5150; font-size: 0.9rem; margin-left: 8px;">
+                            (0 selected)
+                        </span>
                     </div>
-                    <label class="field-row" style="display:flex; align-items:center; gap:10px;">
-                        <input type="checkbox" name="confirm" value="yes" required>
-                        I understand this will move every student in the selected class and reset their subjects.
+
+                    {# Per-student checkboxes #}
+                    <div class="grades-table" style="margin-bottom: 16px;">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;"></th>
+                                    <th>Name</th>
+                                    <th>Student ID</th>
+                                    <th>Current Class</th>
+                                    <th>Promoted To</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for item in promotion_students %}
+                                    <tr>
+                                        <td style="text-align:center;">
+                                            <input
+                                                type="checkbox"
+                                                name="student_pks"
+                                                value="{{ item.student.pk }}"
+                                                class="promote-checkbox"
+                                                style="width:auto;"
+                                                {% if item.preselected %}checked{% endif %}
+                                            >
+                                        </td>
+                                        <td>{{ item.student.first_name }} {{ item.student.last_name }}</td>
+                                        <td>{{ item.student.student_id }}</td>
+                                        <td>{{ item.student.class_name }}</td>
+                                        <td style="color: #1f6b3e; font-weight: 600;">→ {{ item.to_class }}</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <label class="field-row" style="display:flex; align-items:center; gap:10px; margin-bottom: 12px;">
+                        <input type="checkbox" name="confirm" value="yes" required style="width:auto;">
+                        I understand this will move the selected students and reset their subject enrolment.
                     </label>
-                    <button type="submit" class="button button-primary">Request Promotion</button>
+
+                    <button type="submit" class="button button-primary" id="promote-submit-btn" disabled>
+                        Request Promotion (<span id="submit-count">0</span> student<span id="submit-plural">s</span>)
+                    </button>
                 </form>
             </div>
         {% endif %}
+
+        {# ── Pending promotion requests ────────────────────────────────────── #}
         {% if pending_promotion_requests %}
             <div class="grades-table" style="margin-bottom: 24px;">
                 <h3>Pending Promotion Requests</h3>
                 <table>
                     <thead>
-                        <tr><th>Class</th><th>Next Class</th><th>Students</th><th>Requested By</th><th>Requested</th>{% if can_approve_promotions %}<th>Actions</th>{% endif %}</tr>
+                        <tr>
+                            <th>Class</th>
+                            <th>Next Class</th>
+                            <th>Students Selected</th>
+                            <th>Requested By</th>
+                            <th>Requested</th>
+                            {% if can_approve_promotions %}<th>Actions</th>{% endif %}
+                        </tr>
                     </thead>
                     <tbody>
                         {% for request_item in pending_promotion_requests %}
@@ -68,6 +120,8 @@
                 </table>
             </div>
         {% endif %}
+
+        {# ── Student roster with delete actions ───────────────────────────── #}
         {% if students %}
             <div class="grades-table">
                 <table>
@@ -97,4 +151,41 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+(function () {
+    const checkboxes = document.querySelectorAll('.promote-checkbox');
+    const selectAll  = document.getElementById('select-all-students');
+    const countLabel = document.getElementById('selected-count');
+    const submitBtn  = document.getElementById('promote-submit-btn');
+    const submitCount  = document.getElementById('submit-count');
+    const submitPlural = document.getElementById('submit-plural');
+
+    if (!checkboxes.length) return;
+
+    function updateUI() {
+        const checked = document.querySelectorAll('.promote-checkbox:checked').length;
+        countLabel.textContent  = '(' + checked + ' selected)';
+        submitCount.textContent = checked;
+        submitPlural.textContent = checked === 1 ? '' : 's';
+        submitBtn.disabled = checked === 0;
+        selectAll.indeterminate = checked > 0 && checked < checkboxes.length;
+        selectAll.checked = checked === checkboxes.length;
+    }
+
+    checkboxes.forEach(function (cb) {
+        cb.addEventListener('change', updateUI);
+    });
+
+    if (selectAll) {
+        selectAll.addEventListener('change', function () {
+            checkboxes.forEach(function (cb) { cb.checked = selectAll.checked; });
+            updateUI();
+        });
+    }
+
+    // Run once on load to reflect any preselected checkboxes
+    updateUI();
+})();
+</script>
 {% endblock %}
