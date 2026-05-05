@@ -7,7 +7,7 @@ from django.test import TestCase
 from django.urls import reverse
 
 from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
-from .models import ClassPromotionRequest, Grade, Profile, Student, Subject, TermSetting
+from .models import BehavioralGrade, ClassPromotionRequest, Grade, Profile, Student, Subject, TermSetting
 
 
 class StudentRegistrationTests(TestCase):
@@ -203,6 +203,74 @@ class PortalRenderingTests(TestCase):
         self.assertContains(response, 'Mathematics')
         self.assertContains(response, 'Ada King')
         self.assertContains(response, 'Ben Stone')
+
+    def test_student_report_pdf_generates_printable_result(self):
+        TermSetting.objects.create(current_academic_year='2025/2026', current_term='second_term')
+        student_user = User.objects.create_user(username='CIA/B52026/0001', password='pass12345')
+        student_user.profile.role = Profile.ROLE_STUDENT
+        student_user.profile.save()
+        student = Student.objects.create(
+            student_id='CIA/B52026/0001',
+            first_name='Gabriel',
+            last_name='Zion',
+            class_name='Basic 5',
+            nationality='Nigeria',
+            state_of_origin='Kogi State',
+            club_and_society='Home Makers Club',
+        )
+        math = Subject.objects.create(code='MAT B52', name='Mathematics')
+        english = Subject.objects.create(code='ENG B52', name='English Studies')
+        Grade.objects.create(
+            student=student,
+            subject=math,
+            academic_year='2025/2026',
+            term='second_term',
+            homework=5,
+            class_work=10,
+            project=5,
+            first_test=10,
+            midterm_test=10,
+            exam=58,
+        )
+        Grade.objects.create(
+            student=student,
+            subject=english,
+            academic_year='2025/2026',
+            term='second_term',
+            homework=5,
+            class_work=10,
+            project=5,
+            first_test=10,
+            midterm_test=10,
+            exam=55,
+        )
+        BehavioralGrade.objects.create(
+            student=student,
+            academic_year='2025/2026',
+            term='second_term',
+            punctuality='A',
+            relationship_with_staff='A',
+            politeness='A',
+            neatness='A',
+            co_operation='A',
+            obedience='B',
+            attentiveness='B',
+            adjustment_in_school='A',
+            relationship_with_peers='A',
+            times_present=108,
+            remarks='Keep improving.',
+        )
+        self.client.login(username='CIA/B52026/0001', password='pass12345')
+
+        response = self.client.get(reverse('report_card_pdf'), {
+            'academic_year': '2025/2026',
+            'term': 'second_term',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertTrue(response.content.startswith(b'%PDF'))
+        self.assertIn('CIA-B52026-0001_2025-2026_second_term_report.pdf', response['Content-Disposition'])
 
 
 class DeleteStudentTests(TestCase):

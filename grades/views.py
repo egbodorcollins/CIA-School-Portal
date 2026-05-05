@@ -1,6 +1,6 @@
 from io import BytesIO
-from datetime import timedelta
-
+import os
+from django.conf import settings
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from django.db import transaction
@@ -13,8 +13,9 @@ from django.utils import timezone
 from django.views.decorators.http import require_POST
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
-from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+from reportlab.lib.units import mm
+from reportlab.pdfgen import canvas
+from reportlab.platypus import Table, TableStyle
 
 from .models import (
     Student,
@@ -891,9 +892,367 @@ def student_dashboard(request):
     })
 
 
+_RED = colors.HexColor('#c81a26')
+_ORANGE = colors.HexColor('#f6931e')
+_DARK = colors.HexColor('#24181c')
+_LIGHT = colors.HexColor('#fff7f0')
+_GREY = colors.HexColor('#e8e2dc')
+_WHITE = colors.white
+
+
+def _rounded_rect(c, x, y, w, h, r, fill=None, stroke=None, stroke_width=0.5):
+    path = c.beginPath()
+    path.moveTo(x + r, y)
+    path.lineTo(x + w - r, y)
+    path.arcTo(x + w - r, y, x + w, y + r, 270, 90)
+    path.lineTo(x + w, y + h - r)
+    path.arcTo(x + w - r, y + h - r, x + w, y + h, 0, 90)
+    path.lineTo(x + r, y + h)
+    path.arcTo(x, y + h - r, x + r, y + h, 90, 90)
+    path.lineTo(x, y + r)
+    path.arcTo(x, y, x + r, y + r, 180, 90)
+    path.close()
+
+    should_fill = fill is not None
+    should_stroke = stroke is not None
+    if should_fill:
+        c.setFillColor(fill)
+    if should_stroke:
+        c.setStrokeColor(stroke)
+        c.setLineWidth(stroke_width)
+    c.drawPath(path, fill=int(should_fill), stroke=int(should_stroke))
+
+
+def _letter_color(letter):
+    return {
+        'A': colors.HexColor('#1f6b3e'),
+        'B': colors.HexColor('#276fbf'),
+        'C': colors.HexColor('#e07b00'),
+        'D': colors.HexColor('#b05000'),
+        'E': colors.HexColor('#a00000'),
+        'F': colors.HexColor('#6b0000'),
+    }.get(str(letter).upper(), _DARK)
+
+
+def _resolve_logo_path():
+    """Return absolute path to logo2.png, or None if not found."""
+    base = getattr(settings, 'BASE_DIR', None)
+    candidates = []
+    if base:
+        candidates += [
+            os.path.join(str(base), 'graphic',          'logo2.png'),
+            os.path.join(str(base), 'grades', 'static', 'logo2.png'),
+            os.path.join(str(base), 'static',           'logo2.png'),
+        ]
+    for static_dir in getattr(settings, 'STATICFILES_DIRS', []):
+        candidates.append(os.path.join(str(static_dir), 'logo2.png'))
+    for path in candidates:
+        if os.path.isfile(path):
+            return path
+    return None
+
+
+def build_report_card(
+    *,
+    student_name,
+    student_id,
+    class_name,
+    nationality,
+    state_of_origin,
+    sport_house,
+    club_society,
+    academic_year,
+    term_display,
+    class_count,
+    times_present,
+    average_score,
+    highest_average,
+    grades,
+    behavior,
+    teacher_comment='',
+    head_comment='',
+):
+    buf = BytesIO()
+    cv = canvas.Canvas(buf, pagesize=A4)
+
+    width, height = A4
+    margin = 18 * mm
+    content_width = width - 2 * margin
+    y = height - margin
+
+    band_h  = 32 * mm
+    logo_sz = 30 * mm   # logo drawn as a square inside the header
+
+    _rounded_rect(cv, margin, y - band_h, content_width, band_h, 6, fill=_RED)
+
+    # ── Logo (left side of header) ────────────────────────────────────────────
+    logo_drawn = False
+    logo_path = _resolve_logo_path()
+    if logo_path:
+        try:
+            logo_x = margin + 4 * mm
+            logo_y = y - band_h + (band_h - logo_sz) / 2   # vertically centred
+            # # White circle behind logo so it pops on the red background
+            # cv.setFillColor(_WHITE)
+            # cv.circle(logo_x + logo_sz / 2, logo_y + logo_sz / 2,
+            #           logo_sz / 4 + 1.5 * mm, fill=1, stroke=0)
+            cv.drawImage(
+                logo_path, logo_x, logo_y,
+                width=logo_sz, height=logo_sz,
+                preserveAspectRatio=True, mask='auto',
+            )
+            logo_drawn = True
+        except Exception:
+            logo_drawn = False   # graceful fallback: text stays centred
+
+    # Text centred in the space to the right of the logo (or full width if no logo)
+    text_cx = (margin + logo_sz + 8 * mm + width - margin) / 2 if logo_drawn else width / 2
+
+    cv.setFillColor(_WHITE)
+    cv.setFont('Helvetica-Bold', 15)
+    cv.drawCentredString(text_cx, y - 10 * mm, 'CORINASIA INTERNATIONAL ACADEMY')
+    cv.setFont('Helvetica', 8.5)
+    cv.drawCentredString(text_cx, y - 17 * mm, 'CIA - Uniqueness in All | ciaabuja@gmail.com | +234 802 3160 109')
+    cv.setFont('Helvetica-Bold', 11)
+    cv.drawCentredString(text_cx, y - 26 * mm, f'{academic_year} | {term_display.upper()} REPORT CARD')
+
+    y -= band_h + 4 * mm
+
+    info_h = 32 * mm
+    _rounded_rect(cv, margin, y - info_h, content_width, info_h, 4, fill=_LIGHT, stroke=_GREY)
+
+    row_h = 5.6 * mm
+    left_x = margin + 4 * mm
+    right_x = margin + content_width / 2 + 4 * mm
+
+    rows_left = [
+        ('NAME', student_name),
+        ('STUDENT ID', student_id),
+        ('CLASS', class_name or '-'),
+        ('SPORT HOUSE', sport_house or '-'),
+    ]
+    rows_right = [
+        ('NATIONALITY', nationality or 'Nigeria'),
+        ('STATE OF ORIGIN', state_of_origin or '-'),
+        ('CLUB / SOCIETY', club_society or '-'),
+        ('ACADEMIC YEAR', academic_year),
+    ]
+
+    def draw_info_row(x, row_y, label, value):
+        cv.setFont('Helvetica-Bold', 7)
+        cv.setFillColor(_RED)
+        cv.drawString(x, row_y, f'{label}:')
+        cv.setFont('Helvetica', 8)
+        cv.setFillColor(_DARK)
+        cv.drawString(x + 33 * mm, row_y, str(value))
+
+    base_y = y - 7 * mm
+    for index, (label, value) in enumerate(rows_left):
+        draw_info_row(left_x, base_y - index * row_h, label, value)
+    for index, (label, value) in enumerate(rows_right):
+        draw_info_row(right_x, base_y - index * row_h, label, value)
+
+    y -= info_h + 4 * mm
+
+    stat_items = [
+        ('STUDENTS IN CLASS', str(class_count), _ORANGE),
+        ('TIMES PRESENT', str(times_present), _ORANGE),
+        ('YOUR AVERAGE', f'{average_score:.1f}', _RED),
+        ('CLASS HIGHEST', f'{highest_average:.1f}', colors.HexColor('#276fbf')),
+    ]
+    box_w = content_width / len(stat_items)
+    stat_h = 14 * mm
+    for index, (label, value, color) in enumerate(stat_items):
+        box_x = margin + index * box_w
+        _rounded_rect(cv, box_x + 1.5 * mm, y - stat_h, box_w - 3 * mm, stat_h, 3, fill=color)
+        cv.setFillColor(_WHITE)
+        cv.setFont('Helvetica-Bold', 15)
+        cv.drawCentredString(box_x + box_w / 2, y - 8 * mm, value)
+        cv.setFont('Helvetica', 6.5)
+        cv.drawCentredString(box_x + box_w / 2, y - 12.5 * mm, label)
+
+    y -= stat_h + 5 * mm
+
+    cv.setFont('Helvetica-Bold', 9)
+    cv.setFillColor(_DARK)
+    cv.drawString(margin, y, 'ACADEMIC PERFORMANCE')
+    y -= 3 * mm
+
+    header = ['SUBJECT', 'HW\n/5', 'CW\n/10', 'PRJ\n/5', '1ST\n/10', 'MID\n/10', 'EXAM\n/60', 'TOTAL\n/100', 'GRADE']
+    col_widths = [53 * mm, 12 * mm, 12 * mm, 12 * mm, 12 * mm, 12 * mm, 14 * mm, 16 * mm, 13 * mm]
+
+    hw_total = cw_total = proj_total = t1_total = mid_total = exam_total = total_marks = 0
+    rows = [header]
+    for grade in grades:
+        rows.append([
+            grade['subject'],
+            f"{grade['hw']:.0f}",
+            f"{grade['cw']:.0f}",
+            f"{grade['proj']:.0f}",
+            f"{grade['t1']:.0f}",
+            f"{grade['mid']:.0f}",
+            f"{grade['exam']:.0f}",
+            f"{grade['total']:.0f}",
+            grade['letter'],
+        ])
+        hw_total += grade['hw']
+        cw_total += grade['cw']
+        proj_total += grade['proj']
+        t1_total += grade['t1']
+        mid_total += grade['mid']
+        exam_total += grade['exam']
+        total_marks += grade['total']
+
+    rows.append([
+        'CUMULATIVE TOTAL',
+        f'{hw_total:.0f}',
+        f'{cw_total:.0f}',
+        f'{proj_total:.0f}',
+        f'{t1_total:.0f}',
+        f'{mid_total:.0f}',
+        f'{exam_total:.0f}',
+        f'{total_marks:.0f}',
+        '',
+    ])
+
+    table = Table(rows, colWidths=col_widths)
+    table_style = TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), _RED),
+        ('TEXTCOLOR', (0, 0), (-1, 0), _WHITE),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 7),
+        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
+        ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -2), 8),
+        ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+        ('ALIGN', (0, 1), (0, -1), 'LEFT'),
+        ('VALIGN', (0, 1), (-1, -1), 'MIDDLE'),
+        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f8e8d8')),
+        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, -1), (-1, -1), 8),
+        ('GRID', (0, 0), (-1, -1), 0.4, _GREY),
+        ('LINEBELOW', (0, 0), (-1, 0), 1.2, _RED),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [_WHITE, colors.HexColor('#fdf6f0')]),
+        ('LEFTPADDING', (0, 0), (0, -1), 4),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+    ])
+    for row_index, grade in enumerate(grades, start=1):
+        table_style.add('TEXTCOLOR', (-1, row_index), (-1, row_index), _letter_color(grade['letter']))
+        table_style.add('FONTNAME', (-1, row_index), (-1, row_index), 'Helvetica-Bold')
+        table_style.add('FONTSIZE', (-1, row_index), (-1, row_index), 9)
+
+    table.setStyle(table_style)
+    _table_width, table_height = table.wrapOn(cv, content_width, height)
+    table.drawOn(cv, margin, y - table_height)
+    y -= table_height + 6 * mm
+
+    left_col_w = 82 * mm
+    right_col_w = content_width - left_col_w - 5 * mm
+    right_col_x = margin + left_col_w + 5 * mm
+
+    behavior_rows = [['BEHAVIOUR TRAIT', 'GRADE']]
+    trait_labels = [
+        ('Punctuality', 'punctuality'),
+        ('Relationship with Staff', 'relationship_with_staff'),
+        ('Politeness', 'politeness'),
+        ('Neatness', 'neatness'),
+        ('Co-operation', 'co_operation'),
+        ('Obedience', 'obedience'),
+        ('Attentiveness', 'attentiveness'),
+        ('Adjustment in School', 'adjustment_in_school'),
+        ('Relationship with Peers', 'relationship_with_peers'),
+    ]
+    for label, key in trait_labels:
+        behavior_rows.append([label, behavior.get(key, '-') if behavior else '-'])
+
+    behavior_table = Table(behavior_rows, colWidths=[62 * mm, 20 * mm])
+    behavior_style = TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), _ORANGE),
+        ('TEXTCOLOR', (0, 0), (-1, 0), _WHITE),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 7.5),
+        ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('GRID', (0, 0), (-1, -1), 0.4, _GREY),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [_WHITE, colors.HexColor('#fff8f2')]),
+        ('TOPPADDING', (0, 0), (-1, -1), 3),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ('LEFTPADDING', (0, 0), (0, -1), 4),
+    ])
+    if behavior:
+        for row_index, (_label, key) in enumerate(trait_labels, start=1):
+            behavior_style.add('TEXTCOLOR', (1, row_index), (1, row_index), _letter_color(behavior.get(key, '')))
+            behavior_style.add('FONTNAME', (1, row_index), (1, row_index), 'Helvetica-Bold')
+            behavior_style.add('FONTSIZE', (1, row_index), (1, row_index), 9)
+    behavior_table.setStyle(behavior_style)
+    _behavior_width, behavior_height = behavior_table.wrapOn(cv, left_col_w, height)
+    behavior_table.drawOn(cv, margin, y - behavior_height)
+
+    key_h = 36 * mm
+    _rounded_rect(cv, right_col_x, y - key_h, right_col_w, key_h, 3, fill=_LIGHT, stroke=_GREY)
+    cv.setFont('Helvetica-Bold', 7.5)
+    cv.setFillColor(_RED)
+    cv.drawString(right_col_x + 3 * mm, y - 5 * mm, 'KEY TO RATING')
+    ratings = [
+        ('A', 'EXCELLENT', '90 - 100'),
+        ('B', 'VERY GOOD', '80 - 89'),
+        ('C', 'GOOD', '70 - 79'),
+        ('D', 'SATISFACTORY', '60 - 69'),
+        ('E', 'PASS', '50 - 59'),
+        ('F', 'FAIL', 'Below 50'),
+    ]
+    for index, (letter, description, score_range) in enumerate(ratings):
+        row_y = y - 11 * mm - index * 4.2 * mm
+        cv.setFillColor(_letter_color(letter))
+        cv.setFont('Helvetica-Bold', 7.5)
+        cv.drawString(right_col_x + 3 * mm, row_y, letter)
+        cv.setFillColor(_DARK)
+        cv.setFont('Helvetica', 7.5)
+        cv.drawString(right_col_x + 9 * mm, row_y, f'= {description}')
+        cv.setFillColor(colors.HexColor('#888888'))
+        cv.drawRightString(right_col_x + right_col_w - 3 * mm, row_y, score_range)
+
+    comment_top = y - key_h - 3 * mm
+    comment_h = max(behavior_height - key_h - 3 * mm, 22 * mm)
+    _rounded_rect(cv, right_col_x, comment_top - comment_h, right_col_w, comment_h, 3, fill=_WHITE, stroke=_GREY)
+
+    cv.setFont('Helvetica-Bold', 7.5)
+    cv.setFillColor(_RED)
+    cv.drawString(right_col_x + 3 * mm, comment_top - 5 * mm, "CLASS TEACHER'S COMMENT")
+    cv.setFont('Helvetica', 7.5)
+    cv.setFillColor(_DARK)
+    cv.drawString(right_col_x + 3 * mm, comment_top - 10.5 * mm, (teacher_comment or '').strip() or ('_' * 36))
+
+    cv.setFont('Helvetica-Bold', 7.5)
+    cv.setFillColor(_RED)
+    cv.drawString(right_col_x + 3 * mm, comment_top - 17 * mm, "HEAD TEACHER'S COMMENT")
+    cv.setFont('Helvetica', 7.5)
+    cv.setFillColor(_DARK)
+    cv.drawString(right_col_x + 3 * mm, comment_top - 22.5 * mm, (head_comment or '').strip() or ('_' * 36))
+
+    y -= max(behavior_height, key_h + comment_h + 3 * mm) + 5 * mm
+
+    cv.setStrokeColor(_GREY)
+    cv.setLineWidth(0.5)
+    cv.line(margin, y, margin + content_width, y)
+    y -= 4 * mm
+    cv.setFont('Helvetica', 7)
+    cv.setFillColor(colors.HexColor('#888888'))
+    cv.drawCentredString(
+        width / 2,
+        y,
+        'This report is computer-generated and valid without a stamp. Corinasia International Academy, Abuja.',
+    )
+
+    cv.showPage()
+    cv.save()
+    return buf.getvalue()
+
+
 @login_required
 def report_card_pdf(request):
-    student = None
     try:
         student = Student.objects.get(student_id=request.user.username)
     except Student.DoesNotExist:
@@ -906,6 +1265,7 @@ def report_card_pdf(request):
         request.GET.get('term'),
     )
     term_display = _term_display(selected_term)
+
     selected_grades = list(
         Grade.objects.filter(
             student=student,
@@ -922,152 +1282,69 @@ def report_card_pdf(request):
     class_students = Student.objects.filter(class_name=student.class_name)
     class_count = class_students.count()
 
-    def average_score_for_student(student_obj):
-        student_grades = Grade.objects.filter(
+    def average_for(student_obj):
+        grades = Grade.objects.filter(
             student=student_obj,
             academic_year=selected_academic_year,
             term=selected_term,
         )
-        if not student_grades:
-            return 0
-        return sum(g.marks for g in student_grades) / len(student_grades)
+        return (sum(grade.marks for grade in grades) / len(grades)) if grades else 0.0
 
-    average_score = average_score_for_student(student)
-    highest_average = 0
-    for classmate in class_students:
-        highest_average = max(highest_average, average_score_for_student(classmate))
+    average_score = average_for(student)
+    highest_average = max((average_for(classmate) for classmate in class_students), default=0.0)
 
-    response = HttpResponse(content_type='application/pdf')
-    # Keep the download filename filesystem-friendly because student IDs contain slashes.
+    grade_dicts = [
+        {
+            'subject': grade.subject.name,
+            'hw': grade.homework,
+            'cw': grade.class_work,
+            'proj': grade.project,
+            't1': grade.first_test,
+            'mid': grade.midterm_test,
+            'exam': grade.exam,
+            'total': grade.marks,
+            'letter': grade.letter_grade,
+        }
+        for grade in selected_grades
+    ]
+
+    behavior_dict = None
+    if selected_behavior:
+        behavior_dict = {
+            'punctuality': selected_behavior.punctuality,
+            'relationship_with_staff': selected_behavior.relationship_with_staff,
+            'politeness': selected_behavior.politeness,
+            'neatness': selected_behavior.neatness,
+            'co_operation': selected_behavior.co_operation,
+            'obedience': selected_behavior.obedience,
+            'attentiveness': selected_behavior.attentiveness,
+            'adjustment_in_school': selected_behavior.adjustment_in_school,
+            'relationship_with_peers': selected_behavior.relationship_with_peers,
+        }
+
+    pdf_bytes = build_report_card(
+        student_name=f'{student.first_name} {student.last_name}',
+        student_id=student.student_id,
+        class_name=student.class_name or 'Not assigned',
+        nationality=student.nationality,
+        state_of_origin=student.state_of_origin or '',
+        sport_house=student.sport_house or '',
+        club_society=student.club_and_society or '',
+        academic_year=selected_academic_year,
+        term_display=term_display,
+        class_count=class_count,
+        times_present=selected_behavior.times_present if selected_behavior else 0,
+        average_score=average_score,
+        highest_average=highest_average,
+        grades=grade_dicts,
+        behavior=behavior_dict,
+        teacher_comment=selected_behavior.remarks if selected_behavior and selected_behavior.remarks else '',
+    )
+
     safe_student_id = student.student_id.replace('/', '-')
     safe_year = selected_academic_year.replace('/', '-')
-    response['Content-Disposition'] = f'attachment; filename="{safe_student_id}_{safe_year}_{selected_term}_report.pdf"'
+    filename = f'{safe_student_id}_{safe_year}_{selected_term}_report.pdf'
 
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=A4, rightMargin=35, leftMargin=35, topMargin=35, bottomMargin=35)
-    styles = getSampleStyleSheet()
-    heading = Paragraph('CORINAISA INTERNATIONAL ACADEMY', ParagraphStyle('Title', parent=styles['Title'], alignment=1, fontSize=18, leading=22, spaceAfter=10))
-    subtitle = Paragraph(f'<b>{selected_academic_year} {term_display.upper()} REPORT</b>', ParagraphStyle('Subtitle', parent=styles['Heading2'], alignment=1, fontSize=14, textColor=colors.red, spaceAfter=14))
-
-    next_term_begin = timezone.now().date() + timedelta(days=90)
-    header_data = [
-        ['CLASS', student.class_name or 'Not assigned', 'GRADE IN CLASS', 'A'],
-        ['NAME', f'{student.first_name} {student.last_name}', 'AVERAGE SCORE', f'{average_score:.2f}'],
-        ['NATIONALITY', student.nationality or 'N/A', 'HIGHEST AVERAGE IN CLASS', f'{highest_average:.2f}'],
-        ['STATE OF ORIGIN', student.state_of_origin or 'N/A', 'NO. OF TIMES SCHOOL OPENED', '112'],
-        ['CLUB/SOCIETY', student.club_and_society or 'N/A', 'NEXT TERM BEGIN', next_term_begin.strftime('%d %b, %Y')],
-        ['NO. OF CHILDREN IN CLASS', str(class_count), 'NO. OF TIMES PRESENT', str(selected_behavior.times_present if selected_behavior else 0)],
-    ]
-
-    info_table = Table(header_data, colWidths=[90, 160, 140, 120])
-    info_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('LINEBEFORE', (2, 0), (2, -1), 1, colors.black),
-    ]))
-
-    assessment_data = [['SUBJECT', 'HW', 'CW', 'PRJ', 'T1', 'MID', 'EXAM', 'TOTAL', 'GRADE', 'POSITION']]
-    hw_total = cw_total = proj_total = t1_total = mid_total = exam_total = 0
-    for idx, grade in enumerate(selected_grades, start=1):
-        hw_total += getattr(grade, 'homework', 0) or 0
-        cw_total += getattr(grade, 'class_work', 0) or 0
-        proj_total += getattr(grade, 'project', 0) or 0
-        t1_total += getattr(grade, 'first_test', 0) or 0
-        mid_total += getattr(grade, 'midterm_test', 0) or 0
-        exam_total += getattr(grade, 'exam', 0) or 0
-
-        assessment_data.append([
-            grade.subject.name,
-            f'{grade.homework:.0f}',
-            f'{grade.class_work:.0f}',
-            f'{grade.project:.0f}',
-            f'{grade.first_test:.0f}',
-            f'{grade.midterm_test:.0f}',
-            f'{grade.exam:.0f}',
-            f'{grade.marks:.0f}',
-            grade.letter_grade,
-            str(idx),
-        ])
-
-    total_marks = sum(g.marks for g in selected_grades)
-    assessment_data.append([
-        'TOTAL',
-        f'{hw_total:.0f}',
-        f'{cw_total:.0f}',
-        f'{proj_total:.0f}',
-        f'{t1_total:.0f}',
-        f'{mid_total:.0f}',
-        f'{exam_total:.0f}',
-        f'{total_marks:.0f}',
-        '',
-        '',
-    ])
-
-    assessment_table = Table(assessment_data, colWidths=[120, 30, 30, 30, 30, 30, 40, 40, 35, 35])
-    assessment_table.setStyle(TableStyle([
-        ('GRID', (0, 0), (-1, -2), 0.5, colors.black),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f4a261')),
-        ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-    ]))
-
-    behavior_data = [
-        ['BEHAVIOUR', 'GRADE (A-F)'],
-        ['PUNCTUALITY', selected_behavior.punctuality if selected_behavior else 'N/A'],
-        ['RELATIONSHIP WITH STAFF', selected_behavior.relationship_with_staff if selected_behavior else 'N/A'],
-        ['POLITENESS', selected_behavior.politeness if selected_behavior else 'N/A'],
-        ['NEATNESS', selected_behavior.neatness if selected_behavior else 'N/A'],
-        ['CO-OPERATION', selected_behavior.co_operation if selected_behavior else 'N/A'],
-        ['OBEDIENCE', selected_behavior.obedience if selected_behavior else 'N/A'],
-        ['ATTENTIVENESS', selected_behavior.attentiveness if selected_behavior else 'N/A'],
-        ['ADJUSTMENT IN SCHOOL', selected_behavior.adjustment_in_school if selected_behavior else 'N/A'],
-        ['RELATIONSHIP WITH PEERS', selected_behavior.relationship_with_peers if selected_behavior else 'N/A'],
-    ]
-    behavior_table = Table(behavior_data, colWidths=[220, 80])
-    behavior_table.setStyle(TableStyle([
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f4a261')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
-    ]))
-
-    rating_data = [
-        ['KEY TO RATING', ''],
-        ['A = EXCELLENT', '90-100'],
-        ['B = VERY GOOD', '80-89'],
-        ['C = GOOD', '70-79'],
-        ['D = AVERAGE', '60-69'],
-        ['E = PASS', '50-59'],
-        ['F = FAIL', '< 50'],
-    ]
-    rating_table = Table(rating_data, colWidths=[180, 120])
-    rating_table.setStyle(TableStyle([
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#f4a261')),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-    ]))
-
-    doc.build([
-        heading,
-        subtitle,
-        Spacer(1, 12),
-        info_table,
-        Spacer(1, 12),
-        assessment_table,
-        Spacer(1, 12),
-        rating_table,
-        Spacer(1, 12),
-        behavior_table,
-        Spacer(1, 36),
-        Paragraph('Class Teacher\'s Comment: ___________________________________________', styles['Normal']),
-        Spacer(1, 18),
-        Paragraph('Head Teacher\'s Comment: ___________________________________________', styles['Normal']),
-    ])
-
-    pdf = buffer.getvalue()
-    buffer.close()
-    response.write(pdf)
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response
