@@ -7,3 +7,4 @@ sentry-sdk==1.40.0
 reportlab==4.0.7
 gunicorn==21.2.0
 whitenoise==6.7.0
+dj-database-url==2.1.0
