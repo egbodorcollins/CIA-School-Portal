@@ -1,9 +1,19 @@
 Django==5.2.14
 python-decouple==3.8
+
+# PostgreSQL Database Adapter
 psycopg2-binary==2.9.12
+
+# Excel File Handling
 openpyxl==3.1.5
+
+# Data Manipulation and Analysis
 pandas==3.0.2
+
+# Error Monitoring and Reporting
 sentry-sdk==1.40.0
+
+# PDF Generation
 reportlab==4.0.7
 gunicorn==21.2.0
 whitenoise==6.7.0
