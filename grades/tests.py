@@ -10,6 +10,19 @@ from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
 from .models import BehavioralGrade, ClassPromotionRequest, Grade, Profile, Student, Subject, TermSetting
 
 
+class LoginTests(TestCase):
+    def test_username_login_is_case_insensitive(self):
+        User.objects.create_user(username='CIA/J12026/0001', password='pass12345')
+
+        response = self.client.post(
+            reverse('login'),
+            {'username': 'cia/j12026/0001', 'password': 'pass12345'},
+        )
+
+        self.assertRedirects(response, reverse('home'))
+        self.assertEqual(int(self.client.session['_auth_user_id']), User.objects.get(username='CIA/J12026/0001').pk)
+
+
 class StudentRegistrationTests(TestCase):
     def setUp(self):
         self.form_data = {
@@ -203,6 +216,82 @@ class PortalRenderingTests(TestCase):
         self.assertContains(response, 'Mathematics')
         self.assertContains(response, 'Ada King')
         self.assertContains(response, 'Ben Stone')
+
+    def test_subject_teacher_dashboard_only_shows_subject_tools_and_rosters(self):
+        math = Subject.objects.create(code='MAT B51', name='Mathematics')
+        english = Subject.objects.create(code='ENG B51', name='English Studies')
+        ada = Student.objects.create(student_id='CIA/B52026/0001', first_name='Ada', last_name='King', class_name='Basic 5')
+        ben = Student.objects.create(student_id='CIA/B52026/0002', first_name='Ben', last_name='Stone', class_name='Basic 5')
+        ada.subjects.add(math)
+        ben.subjects.add(english)
+        subject_teacher = User.objects.create_user(username='mathteacher', password='pass12345')
+        subject_teacher.profile.role = Profile.ROLE_SUBJECT_TEACHER
+        subject_teacher.profile.save()
+        subject_teacher.profile.assigned_subjects.add(math)
+        self.client.login(username='mathteacher', password='pass12345')
+
+        response = self.client.get(reverse('teacher_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Subject Analytics')
+        self.assertContains(response, 'Subject Rosters')
+        self.assertContains(response, 'Mathematics')
+        self.assertContains(response, 'Ada King')
+        self.assertNotContains(response, 'Register New Student')
+        self.assertNotContains(response, 'Enter Behavioral Assessments')
+        self.assertNotContains(response, 'Manage Students')
+        self.assertNotContains(response, 'Class Analytics')
+        self.assertNotContains(response, 'Ben Stone')
+
+    def test_subject_teacher_score_entry_is_limited_to_selected_subject_students(self):
+        TermSetting.objects.create(current_term='first_term')
+        math = Subject.objects.create(code='MAT B51', name='Mathematics')
+        english = Subject.objects.create(code='ENG B51', name='English Studies')
+        ada = Student.objects.create(student_id='CIA/B52026/0001', first_name='Ada', last_name='King', class_name='Basic 5')
+        ben = Student.objects.create(student_id='CIA/B52026/0002', first_name='Ben', last_name='Stone', class_name='Basic 5')
+        ada.subjects.add(math)
+        ben.subjects.add(english)
+        subject_teacher = User.objects.create_user(username='mathteacher', password='pass12345')
+        subject_teacher.profile.role = Profile.ROLE_SUBJECT_TEACHER
+        subject_teacher.profile.save()
+        subject_teacher.profile.assigned_subjects.add(math)
+        self.client.login(username='mathteacher', password='pass12345')
+
+        response = self.client.get(reverse('enter_academic_scores'), {'subject': math.pk})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Select Subject')
+        self.assertContains(response, 'Selected Subject')
+        self.assertContains(response, 'Mathematics')
+        self.assertContains(response, 'Ada King')
+        self.assertNotContains(response, 'Ben Stone')
+        self.assertNotContains(response, 'English Studies')
+
+    def test_subject_teacher_analytics_uses_subject_scope(self):
+        TermSetting.objects.create(current_term='first_term')
+        math = Subject.objects.create(code='MAT B51', name='Mathematics')
+        english = Subject.objects.create(code='ENG B51', name='English Studies')
+        ada = Student.objects.create(student_id='CIA/B52026/0001', first_name='Ada', last_name='King', class_name='Basic 5')
+        ben = Student.objects.create(student_id='CIA/B52026/0002', first_name='Ben', last_name='Stone', class_name='Basic 5')
+        ada.subjects.add(math, english)
+        ben.subjects.add(english)
+        Grade.objects.create(student=ada, subject=math, term='first_term', homework=5, class_work=10, project=5, first_test=10, midterm_test=10, exam=55)
+        Grade.objects.create(student=ben, subject=english, term='first_term', homework=3, class_work=7, project=4, first_test=7, midterm_test=7, exam=42)
+        subject_teacher = User.objects.create_user(username='mathteacher', password='pass12345')
+        subject_teacher.profile.role = Profile.ROLE_SUBJECT_TEACHER
+        subject_teacher.profile.save()
+        subject_teacher.profile.assigned_subjects.add(math)
+        self.client.login(username='mathteacher', password='pass12345')
+
+        response = self.client.get(reverse('class_analytics'), {'subject': math.pk})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Subject Analytics')
+        self.assertContains(response, 'Class Averages')
+        self.assertContains(response, 'Subject Average')
+        self.assertContains(response, 'Ada King')
+        self.assertNotContains(response, 'Class Analytics')
+        self.assertNotContains(response, 'Ben Stone')
 
     def test_student_report_pdf_generates_printable_result(self):
         TermSetting.objects.create(current_academic_year='2025/2026', current_term='second_term')

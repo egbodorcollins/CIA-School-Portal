@@ -6,10 +6,29 @@
         <h2>Enter Academic Scores</h2>
         <p>Use this page to record or update grades for {{ current_academic_year }} {{ current_term_display }}.</p>
         <div class="teacher-form-card">
+            {% if is_subject_teacher %}
+            <div style="margin-bottom:12px">
+                {% if assigned_subjects %}
+                    <form method="get" class="student-select-form">
+                        <label for="subject-select">Select Subject</label>
+                        <select id="subject-select" name="subject" onchange="this.form.submit()">
+                            {% for subject in assigned_subjects %}
+                                <option value="{{ subject.pk }}" {% if selected_subject and subject.pk == selected_subject.pk %}selected{% endif %}>{{ subject.name }} ({{ subject.code }})</option>
+                            {% endfor %}
+                        </select>
+                        <noscript><button type="submit" class="button">Select</button></noscript>
+                    </form>
+                {% else %}
+                    <p class="empty-state">No subjects have been assigned to your profile yet.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+
             {% comment %} Student selection (select first, then subjects are limited ) {% endcomment %}
             <div style="margin-bottom:12px">
                 {% if students %}
                     <form method="get" class="student-select-form">
+                        {% if selected_subject %}<input type="hidden" name="subject" value="{{ selected_subject.pk }}">{% endif %}
                         <label for="student-select">Select Student</label>
                         <select id="student-select" name="student" onchange="this.form.submit()">
                             <option value="">-- Select student --</option>
@@ -38,15 +57,23 @@
                 <div class="field-row">
                     <label>Selected Student</label>
                     <div>{{ selected_student.first_name }} {{ selected_student.last_name }} ({{ selected_student.student_id }})
-                        <a href="{% url 'enter_academic_scores' %}" class="button" style="margin-left:8px;">Change</a>
+                        <a href="{% url 'enter_academic_scores' %}{% if selected_subject %}?subject={{ selected_subject.pk }}{% endif %}" class="button" style="margin-left:8px;">Change</a>
                     </div>
                 </div>
                 {% endif %}
-                <div class="field-row">
-                    {{ form.subject.label_tag }}
+                {% if is_subject_teacher and selected_subject %}
                     {{ form.subject }}
-                    {% for error in form.subject.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
-                </div>
+                    <div class="field-row">
+                        <label>Selected Subject</label>
+                        <div>{{ selected_subject.name }} ({{ selected_subject.code }})</div>
+                    </div>
+                {% else %}
+                    <div class="field-row">
+                        {{ form.subject.label_tag }}
+                        {{ form.subject }}
+                        {% for error in form.subject.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                    </div>
+                {% endif %}
                 <div class="field-row">
                     {{ form.homework.label_tag }}
                     {{ form.homework }}

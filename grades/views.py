@@ -8,6 +8,8 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from .decorators import class_teacher_or_admin_required, teacher_or_admin_required, admin_required
 from django.contrib import messages
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -42,6 +44,18 @@ from .subject_map import CLASS_PROGRESSION
 from django.forms import HiddenInput
 
 
+class CaseInsensitiveAuthenticationForm(AuthenticationForm):
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if not username:
+            return username
+
+        try:
+            return User.objects.get(username__iexact=username).username
+        except (User.DoesNotExist, User.MultipleObjectsReturned):
+            return username
+
+
 def _user_can_approve_promotions(user, profile=None):
     return (
         (profile and profile.role == Profile.ROLE_ADMIN)
@@ -59,6 +73,22 @@ def _term_display(term):
 
 def _current_period():
     return TermSetting.get_current_period()
+
+
+def _subject_teacher_subjects(profile):
+    if not profile or profile.role != Profile.ROLE_SUBJECT_TEACHER:
+        return Subject.objects.none()
+    return profile.assigned_subjects.all().order_by('name', 'code')
+
+
+def _subject_teacher_students(profile, subject=None):
+    assigned_subjects = _subject_teacher_subjects(profile)
+    subjects = Subject.objects.filter(pk=subject.pk) if subject else assigned_subjects
+    return (
+        Student.objects.filter(subjects__in=subjects)
+        .distinct()
+        .order_by('last_name', 'first_name')
+    )
 
 
 def _student_result_period(student, requested_year=None, requested_term=None):
@@ -99,6 +129,7 @@ def _student_result_period(student, requested_year=None, requested_term=None):
 class RateLimitedLoginView(LoginView):
     template_name = 'grades/login.html'
     redirect_authenticated_user = True
+    authentication_form = CaseInsensitiveAuthenticationForm
 
     # @ratelimit(key='ip', rate='5/m', method='POST')  # Disabled for development
     def post(self, request, *args, **kwargs):
@@ -310,13 +341,21 @@ def teacher_dashboard(request):
         messages.error(request, 'Could not load your staff profile. Please contact the administrator.')
         return redirect('home')
 
+    subject_rosters = []
+    assigned_subjects = Subject.objects.none()
+
     if profile.role == 'admin':
         students = Student.objects.all().order_by('last_name')
     elif profile.role == 'class_teacher':
         students = Student.objects.filter(class_name=profile.assigned_class).order_by('last_name')
     elif profile.role == 'subject_teacher':
-        assigned_subjects = profile.assigned_subjects.all()
-        students = Student.objects.filter(grades__subject__in=assigned_subjects).distinct().order_by('last_name')
+        assigned_subjects = _subject_teacher_subjects(profile)
+        students = _subject_teacher_students(profile)
+        for subject in assigned_subjects:
+            subject_rosters.append({
+                'subject': subject,
+                'students': _subject_teacher_students(profile, subject),
+            })
     else:
         students = Student.objects.none()
 
@@ -324,6 +363,9 @@ def teacher_dashboard(request):
     return render(request, 'grades/teacher_dashboard.html', {
         'students': students,
         'form': form,
+        'profile': profile,
+        'assigned_subjects': assigned_subjects,
+        'subject_rosters': subject_rosters,
         'can_request_promotion': profile.role == Profile.ROLE_CLASS_TEACHER or _user_can_approve_promotions(request.user, profile),
     })
 
@@ -338,22 +380,22 @@ def class_analytics(request):
     if current_term not in academic_terms:
         academic_terms.append(current_term)
 
-    if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
+    is_subject_analytics = profile and profile.role == Profile.ROLE_SUBJECT_TEACHER
+    subject_options = []
+    selected_subject = None
+
+    if is_subject_analytics:
+        subject_options = list(_subject_teacher_subjects(profile))
+        requested_subject = request.GET.get('subject')
+        if requested_subject:
+            selected_subject = next((subject for subject in subject_options if str(subject.pk) == requested_subject), None)
+        if not selected_subject and subject_options:
+            selected_subject = subject_options[0]
+        selected_class = ''
+        class_options = []
+    elif profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
         class_options = [profile.assigned_class]
         selected_class = profile.assigned_class
-    elif profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
-        assigned_subjects = profile.assigned_subjects.all()
-        class_options = list(
-            Student.objects.filter(
-                Q(subjects__in=assigned_subjects) | Q(grades__subject__in=assigned_subjects)
-            )
-            .exclude(class_name__isnull=True)
-            .exclude(class_name='')
-            .order_by('class_name')
-            .values_list('class_name', flat=True)
-            .distinct()
-        )
-        selected_class = request.GET.get('class') or (class_options[0] if class_options else '')
     else:
         class_options = list(
             Student.objects.exclude(class_name__isnull=True)
@@ -364,17 +406,35 @@ def class_analytics(request):
         )
         selected_class = request.GET.get('class') or (class_options[0] if class_options else '')
 
-    if selected_class not in class_options and class_options:
+    if not is_subject_analytics and selected_class not in class_options and class_options:
         selected_class = class_options[0]
 
-    class_grades = Grade.objects.filter(student__class_name=selected_class).select_related('student', 'subject')
-    current_grades = class_grades.filter(academic_year=current_academic_year, term=current_term)
+    if is_subject_analytics:
+        all_grades = Grade.objects.none()
+        current_grades = Grade.objects.none()
+        subject_students = Student.objects.none()
+        if selected_subject:
+            all_grades = Grade.objects.filter(
+                subject=selected_subject,
+                student__subjects=selected_subject,
+            ).select_related('student', 'subject')
+            current_grades = all_grades.filter(academic_year=current_academic_year, term=current_term)
+            subject_students = _subject_teacher_students(profile, selected_subject)
+    else:
+        all_grades = Grade.objects.filter(student__class_name=selected_class).select_related('student', 'subject')
+        current_grades = all_grades.filter(academic_year=current_academic_year, term=current_term)
+        subject_students = Student.objects.none()
 
     subject_averages = list(
         current_grades.values('subject__name', 'subject__code')
         .annotate(average=Avg('marks'), entries=Count('id'))
         .order_by('subject__name')
     )
+    class_averages = list(
+        current_grades.values('student__class_name')
+        .annotate(average=Avg('marks'), entries=Count('id'))
+        .order_by('student__class_name')
+    ) if is_subject_analytics else []
 
     raw_distribution = dict(
         current_grades.values('letter_grade').annotate(total=Count('id')).values_list('letter_grade', 'total')
@@ -410,7 +470,7 @@ def class_analytics(request):
     term_averages = []
     raw_term_averages = {
         row['term']: row
-        for row in class_grades.filter(term__in=academic_terms)
+        for row in all_grades.filter(term__in=academic_terms)
         .filter(academic_year=current_academic_year)
         .values('term')
         .annotate(average=Avg('marks'), entries=Count('id'))
@@ -437,13 +497,17 @@ def class_analytics(request):
         'current_term': current_term,
         'current_term_display': term_labels.get(current_term, current_term.replace('_', ' ').title()),
         'current_academic_year': current_academic_year,
+        'is_subject_analytics': is_subject_analytics,
+        'subject_options': subject_options,
+        'selected_subject': selected_subject,
         'subject_averages': subject_averages,
+        'class_averages': class_averages,
         'grade_distribution': grade_distribution,
         'top_students': top_students,
         'bottom_students': bottom_students,
         'term_averages': term_averages,
         'total_grade_entries': current_grades.count(),
-        'student_count': Student.objects.filter(class_name=selected_class).count() if selected_class else 0,
+        'student_count': subject_students.count() if is_subject_analytics else (Student.objects.filter(class_name=selected_class).count() if selected_class else 0),
     })
 
 
@@ -459,6 +523,13 @@ def set_current_term(request):
 def enter_academic_scores(request):
     current_academic_year, current_term = _current_period()
     profile = getattr(request.user, 'profile', None)
+    assigned_subjects = _subject_teacher_subjects(profile)
+    selected_subject = None
+    subject_pk = request.GET.get('subject') or request.POST.get('subject')
+    if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER and subject_pk:
+        selected_subject = assigned_subjects.filter(pk=subject_pk).first()
+    if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER and not selected_subject:
+        selected_subject = assigned_subjects.first()
 
     # Prepare students available for selection based on user's role
     if profile and profile.role == Profile.ROLE_ADMIN:
@@ -466,7 +537,7 @@ def enter_academic_scores(request):
     elif profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
         students_for_select = Student.objects.filter(class_name=profile.assigned_class).order_by('last_name')
     elif profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
-        students_for_select = Student.objects.filter(subjects__in=profile.assigned_subjects.all()).distinct().order_by('last_name')
+        students_for_select = _subject_teacher_students(profile, selected_subject)
     else:
         students_for_select = Student.objects.none()
 
@@ -485,7 +556,10 @@ def enter_academic_scores(request):
         if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
             form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
         if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
-            form.fields['subject'].queryset = profile.assigned_subjects.all()
+            form.fields['student'].queryset = students_for_select
+            form.fields['subject'].queryset = assigned_subjects
+            if selected_subject:
+                form.fields['subject'].queryset = assigned_subjects.filter(pk=selected_subject.pk)
 
         # If a student was pre-selected, lock the student field
         if selected_student:
@@ -520,6 +594,10 @@ def enter_academic_scores(request):
             except Exception:
                 pass
             messages.success(request, 'Academic score saved successfully.')
+            if selected_subject:
+                if selected_student:
+                    return redirect(f"{request.path}?subject={selected_subject.pk}&student={selected_student.pk}")
+                return redirect(f"{request.path}?subject={selected_subject.pk}")
             if selected_student:
                 return redirect(f"{request.path}?student={selected_student.pk}")
             return redirect('enter_academic_scores')
@@ -528,7 +606,12 @@ def enter_academic_scores(request):
         if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
             form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
         if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
-            form.fields['subject'].queryset = profile.assigned_subjects.all()
+            form.fields['student'].queryset = students_for_select
+            form.fields['subject'].queryset = assigned_subjects
+            if selected_subject:
+                form.fields['subject'].queryset = assigned_subjects.filter(pk=selected_subject.pk)
+                form.fields['subject'].initial = selected_subject.pk
+                form.fields['subject'].widget = HiddenInput()
 
         if selected_student:
             # Lock and hide the student field
@@ -547,7 +630,9 @@ def enter_academic_scores(request):
                     subj_qs = selected_student.subjects.all()
 
                 if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
-                    subj_qs = subj_qs.filter(pk__in=profile.assigned_subjects.all())
+                    subj_qs = subj_qs.filter(pk__in=assigned_subjects)
+                    if selected_subject:
+                        subj_qs = subj_qs.filter(pk=selected_subject.pk)
 
                 form.fields['subject'].queryset = subj_qs
             except Exception:
@@ -556,12 +641,18 @@ def enter_academic_scores(request):
     # Show only selected student's grades when a student is selected
     if selected_student:
         grades = Grade.objects.filter(academic_year=current_academic_year, term=current_term, student=selected_student).select_related('student', 'subject').order_by('subject__name')
+        if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+            grades = grades.filter(subject__in=assigned_subjects)
+            if selected_subject:
+                grades = grades.filter(subject=selected_subject)
     else:
         grades = Grade.objects.filter(academic_year=current_academic_year, term=current_term).select_related('student', 'subject').order_by('student__last_name', 'subject__name')
         if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
             grades = grades.filter(student__class_name=profile.assigned_class)
         if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
-            grades = grades.filter(subject__in=profile.assigned_subjects.all())
+            grades = grades.filter(subject__in=assigned_subjects)
+            if selected_subject:
+                grades = grades.filter(subject=selected_subject)
 
     return render(request, 'grades/enter_academic_scores.html', {
         'form': form,
@@ -571,6 +662,9 @@ def enter_academic_scores(request):
         'current_term_display': _term_display(current_term),
         'students': students_for_select,
         'selected_student': selected_student,
+        'assigned_subjects': assigned_subjects,
+        'selected_subject': selected_subject,
+        'is_subject_teacher': profile and profile.role == Profile.ROLE_SUBJECT_TEACHER,
     })
 
 
