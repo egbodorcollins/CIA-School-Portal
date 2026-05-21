@@ -8,6 +8,8 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import login_required
 from .decorators import class_teacher_or_admin_required, teacher_or_admin_required, admin_required
 from django.contrib import messages
+from django.contrib.auth.forms import AuthenticationForm
+from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
 from django.utils import timezone
 from django.views.decorators.http import require_POST
@@ -40,6 +42,18 @@ from .forms import (
 )
 from .subject_map import CLASS_PROGRESSION
 from django.forms import HiddenInput
+
+
+class CaseInsensitiveAuthenticationForm(AuthenticationForm):
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if not username:
+            return username
+
+        try:
+            return User.objects.get(username__iexact=username).username
+        except (User.DoesNotExist, User.MultipleObjectsReturned):
+            return username
 
 
 def _user_can_approve_promotions(user, profile=None):
@@ -99,6 +113,7 @@ def _student_result_period(student, requested_year=None, requested_term=None):
 class RateLimitedLoginView(LoginView):
     template_name = 'grades/login.html'
     redirect_authenticated_user = True
+    authentication_form = CaseInsensitiveAuthenticationForm
 
     # @ratelimit(key='ip', rate='5/m', method='POST')  # Disabled for development
     def post(self, request, *args, **kwargs):

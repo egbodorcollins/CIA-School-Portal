@@ -10,6 +10,19 @@ from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
 from .models import BehavioralGrade, ClassPromotionRequest, Grade, Profile, Student, Subject, TermSetting
 
 
+class LoginTests(TestCase):
+    def test_username_login_is_case_insensitive(self):
+        User.objects.create_user(username='CIA/J12026/0001', password='pass12345')
+
+        response = self.client.post(
+            reverse('login'),
+            {'username': 'cia/j12026/0001', 'password': 'pass12345'},
+        )
+
+        self.assertRedirects(response, reverse('home'))
+        self.assertEqual(int(self.client.session['_auth_user_id']), User.objects.get(username='CIA/J12026/0001').pk)
+
+
 class StudentRegistrationTests(TestCase):
     def setUp(self):
         self.form_data = {
