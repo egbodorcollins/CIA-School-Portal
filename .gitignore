@@ -216,9 +216,15 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
-.env
+
+.env 
 db.sqlite3
-db.sqlite3*.bak
+*.bak
+*.log
+sqlite_export*.json
 __pycache__/
 *.pyc
 venv/
+cache/
+RecycleBin/
+logs/
