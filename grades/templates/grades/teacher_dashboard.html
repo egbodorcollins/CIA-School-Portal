@@ -6,28 +6,57 @@
         <p>Welcome, {{ user.get_full_name|default:user.username }}.</p>
         <p class="helper-text">Academic term settings are managed in the admin dashboard.</p>
         <div class="teacher-actions">
-            <a class="button button-primary" href="{% url 'register_student' %}">Register New Student</a>
             <a class="button button-secondary" href="{% url 'enter_academic_scores' %}">Enter Academic Scores</a>
-            <a class="button button-secondary" href="{% url 'class_analytics' %}">Class Analytics</a>
-            <a class="button button-secondary" href="{% url 'enter_behavioral_assessments' %}">Enter Behavioral Assessments</a>
-            <a class="button button-secondary" href="{% url 'manage_students' %}">Manage Students</a>
-            {% if can_request_promotion %}
-                <a class="button button-primary" href="{% url 'manage_students' %}#end-of-year-promotion">Request Promotion</a>
+            {% if profile.role == 'subject_teacher' %}
+                <a class="button button-secondary" href="{% url 'class_analytics' %}">Subject Analytics</a>
+            {% else %}
+                <a class="button button-primary" href="{% url 'register_student' %}">Register New Student</a>
+                <a class="button button-secondary" href="{% url 'class_analytics' %}">Class Analytics</a>
+                <a class="button button-secondary" href="{% url 'enter_behavioral_assessments' %}">Enter Behavioral Assessments</a>
+                <a class="button button-secondary" href="{% url 'manage_students' %}">Manage Students</a>
+                {% if can_request_promotion %}
+                    <a class="button button-primary" href="{% url 'manage_students' %}#end-of-year-promotion">Request Promotion</a>
+                {% endif %}
             {% endif %}
         </div>
         <div class="student-list">
-            <h3>Student Roster</h3>
-            {% if students %}
-                <ul>
-                    {% for student in students %}
-                        <li>
-                            {{ student.student_id }} - {{ student.first_name }} {{ student.last_name }} ({{ student.class_name|default:'No Class' }})
-                            <a href="{% url 'enter_academic_scores' %}?student={{ student.pk }}" class="button button-small" style="margin-left:8px;">Enter Scores</a>
-                        </li>
+            {% if profile.role == 'subject_teacher' %}
+                <h3>Subject Rosters</h3>
+                {% if subject_rosters %}
+                    {% for roster in subject_rosters %}
+                        <section class="analytics-section">
+                            <h4>{{ roster.subject.name }} <span class="helper-text">({{ roster.subject.code }})</span></h4>
+                            {% if roster.students %}
+                                <ul>
+                                    {% for student in roster.students %}
+                                        <li>
+                                            {{ student.student_id }} - {{ student.first_name }} {{ student.last_name }} ({{ student.class_name|default:'No Class' }})
+                                            <a href="{% url 'enter_academic_scores' %}?subject={{ roster.subject.pk }}&student={{ student.pk }}" class="button button-small" style="margin-left:8px;">Enter Scores</a>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                            {% else %}
+                                <p class="empty-state">No students are enrolled in this subject yet.</p>
+                            {% endif %}
+                        </section>
                     {% endfor %}
-                </ul>
+                {% else %}
+                    <p class="empty-state">No subjects have been assigned to your profile yet.</p>
+                {% endif %}
             {% else %}
-                <p class="empty-state">No students are registered yet.</p>
+                <h3>Student Roster</h3>
+                {% if students %}
+                    <ul>
+                        {% for student in students %}
+                            <li>
+                                {{ student.student_id }} - {{ student.first_name }} {{ student.last_name }} ({{ student.class_name|default:'No Class' }})
+                                <a href="{% url 'enter_academic_scores' %}?student={{ student.pk }}" class="button button-small" style="margin-left:8px;">Enter Scores</a>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="empty-state">No students are registered yet.</p>
+                {% endif %}
             {% endif %}
         </div>
     </div>
