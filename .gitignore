@@ -225,6 +225,7 @@ sqlite_export*.json
 __pycache__/
 *.pyc
 venv/
+.vscode/
 cache/
 RecycleBin/
 logs/django_error.log
