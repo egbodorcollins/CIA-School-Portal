@@ -1028,6 +1028,32 @@ def _letter_color(letter):
     }.get(str(letter).upper(), _DARK)
 
 
+def _average_letter_grade(average_score):
+    if average_score >= 90:
+        return 'A'
+    if average_score >= 80:
+        return 'B'
+    if average_score >= 70:
+        return 'C'
+    if average_score >= 60:
+        return 'D'
+    if average_score >= 50:
+        return 'E'
+    return 'F'
+
+
+def _head_teacher_comment(average_score):
+    comments = {
+        'A': 'Excellent result. Keep up the outstanding performance.',
+        'B': 'Very good result. Keep working hard for excellence.',
+        'C': 'Good result. More consistent effort will bring higher achievement.',
+        'D': 'Satisfactory result. Greater focus and regular study are needed.',
+        'E': 'Fair result. Please improve study habits and seek support.',
+        'F': 'Poor result. Urgent improvement and close guidance are required.',
+    }
+    return comments[_average_letter_grade(average_score)]
+
+
 def _resolve_logo_path():
     """Return absolute path to logo2.png, or None if not found."""
     base = getattr(settings, 'BASE_DIR', None)
@@ -1433,6 +1459,7 @@ def report_card_pdf(request):
         grades=grade_dicts,
         behavior=behavior_dict,
         teacher_comment=selected_behavior.remarks if selected_behavior and selected_behavior.remarks else '',
+        head_comment=_head_teacher_comment(average_score),
     )
 
     safe_student_id = student.student_id.replace('/', '-')

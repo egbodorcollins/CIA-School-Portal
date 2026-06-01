@@ -8,6 +8,7 @@ from django.urls import reverse
 
 from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
 from .models import BehavioralGrade, ClassPromotionRequest, Grade, Profile, Student, Subject, TermSetting
+from .views import _head_teacher_comment
 
 
 class LoginTests(TestCase):
@@ -189,7 +190,16 @@ class PortalRenderingTests(TestCase):
         self.assertContains(response, 'Punctuality')
         self.assertContains(response, 'Relationship with Staff')
         self.assertContains(response, 'Times Present')
+        self.assertContains(response, 'Class Teacher Comment')
         self.assertNotContains(response, 'behavioral_score')
+
+    def test_head_teacher_comment_is_based_on_average_grade(self):
+        self.assertEqual(_head_teacher_comment(95), 'Excellent result. Keep up the outstanding performance.')
+        self.assertEqual(_head_teacher_comment(85), 'Very good result. Keep working hard for excellence.')
+        self.assertEqual(_head_teacher_comment(75), 'Good result. More consistent effort will bring higher achievement.')
+        self.assertEqual(_head_teacher_comment(65), 'Satisfactory result. Greater focus and regular study are needed.')
+        self.assertEqual(_head_teacher_comment(55), 'Fair result. Please improve study habits and seek support.')
+        self.assertEqual(_head_teacher_comment(45), 'Poor result. Urgent improvement and close guidance are required.')
 
     def test_class_analytics_renders_aggregate_sections(self):
         TermSetting.objects.create(current_term='first_term')

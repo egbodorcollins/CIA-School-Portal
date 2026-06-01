@@ -3,7 +3,7 @@
 <div class="page-shell">
     <div class="dashboard-card">
         <h2>Enter Behavioral Assessments</h2>
-        <p>Record student behavioral scores and comments for {{ current_academic_year }} {{ current_term_display }}.</p>
+        <p>Record student behavioral scores and class teacher comments for {{ current_academic_year }} {{ current_term_display }}.</p>
         <div class="teacher-form-card">
             <form method="post" novalidate>
                 {% csrf_token %}
@@ -80,7 +80,7 @@
             {% if reports %}
                 <table>
                     <thead>
-                        <tr><th>Student</th><th>Score</th><th>Comments</th><th>Recorded</th></tr>
+                        <tr><th>Student</th><th>Times Present</th><th>Class Teacher Comment</th><th>Recorded</th></tr>
                     </thead>
                     <tbody>
                         {% for record in reports %}

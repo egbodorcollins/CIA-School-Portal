@@ -222,7 +222,7 @@ db.sqlite3
 *.bak
 *.log
 sqlite_export*.json
-__pycache__/
+grades/__pycache__/
 *.pyc
 venv/
 .vscode/
