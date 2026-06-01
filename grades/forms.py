@@ -235,8 +235,14 @@ class BehavioralGradeEntryForm(forms.ModelForm):
             'neatness', 'co_operation', 'obedience', 'attentiveness',
             'adjustment_in_school', 'relationship_with_peers', 'times_present', 'remarks'
         ]
+        labels = {
+            'remarks': 'Class Teacher Comment',
+        }
         widgets = {
-            'remarks': forms.Textarea(attrs={'rows': 3}),
+            'remarks': forms.Textarea(attrs={
+                'rows': 3,
+                'placeholder': 'Enter the class teacher comment for this student.',
+            }),
         }
 
     def clean_times_present(self):
