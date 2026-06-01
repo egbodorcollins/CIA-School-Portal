@@ -11,7 +11,7 @@ openpyxl==3.1.5
 pandas==3.0.2
 
 # Error Monitoring and Reporting
-sentry-sdk==1.40.0
+sentry-sdk==1.45.1
 
 # PDF Generation
 reportlab==4.0.7
