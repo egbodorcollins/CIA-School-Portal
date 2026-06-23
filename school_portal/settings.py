@@ -118,13 +118,22 @@ WSGI_APPLICATION = 'school_portal.wsgi.application'
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
+#
+# Supabase exposes a managed PostgreSQL database. Set DATABASE_URL in .env to
+# the Supabase connection string; otherwise local development uses SQLite.
+DATABASE_URL = config(
+    'DATABASE_URL',
+    default=f'sqlite:///{BASE_DIR / "db.sqlite3"}',
+)
+DATABASE_CONN_MAX_AGE = config('DATABASE_CONN_MAX_AGE', default=600, cast=int)
+DATABASE_SSL_REQUIRE = config('DATABASE_SSL_REQUIRE', default=True, cast=bool_env)
+DATABASE_IS_POSTGRES = DATABASE_URL.startswith(('postgres://', 'postgresql://'))
 
 DATABASES = {
-    'default': dj_database_url.config(
-        default=config(
-            'DATABASE_URL',
-            default=f'sqlite:///{BASE_DIR / "db.sqlite3"}'
-        )
+    'default': dj_database_url.parse(
+        DATABASE_URL,
+        conn_max_age=DATABASE_CONN_MAX_AGE,
+        ssl_require=DATABASE_SSL_REQUIRE if DATABASE_IS_POSTGRES else False,
     )
 }
 
