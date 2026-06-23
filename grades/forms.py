@@ -10,7 +10,8 @@ AUTO_STUDENT_PASSWORD = 'CIA@123456'
 
 
 CLASS_CODE_MAP = {
-    'Pre-School': 'PS',
+    'PRESCHOOL': 'PS',
+    'PRE SCHOOL': 'PS',
     'NURSERY1': 'N1',
     'NURSERY2': 'N2',
     'NURSERY3': 'N3',
@@ -126,12 +127,12 @@ def enroll_student_in_standard_subjects(student, class_name=None, term=None, cle
 
 class StudentSignUpForm(forms.Form):
     first_name = forms.CharField(max_length=150, required=True)
+    other_names = forms.CharField(max_length=100, required=False, label='Other names')
     last_name = forms.CharField(max_length=150, required=True)
     class_name = forms.ChoiceField(choices=CLASS_CHOICES, required=True, help_text="Select the student's class so the portal can generate the student ID.")
     nationality = forms.CharField(max_length=50, required=False, initial='Nigeria')
     state_of_origin = forms.CharField(max_length=50, required=False)
     club_and_society = forms.CharField(max_length=100, required=False)
-    sport_house = forms.CharField(max_length=50, required=False)
     date_of_birth = forms.DateField(required=False, widget=forms.DateInput(attrs={'type': 'date'}))
 
     def __init__(self, *args, **kwargs):
@@ -170,12 +171,12 @@ class StudentSignUpForm(forms.Form):
         student = Student(
             student_id=generated_username,
             first_name=self.cleaned_data['first_name'],
+            other_names=self.cleaned_data.get('other_names') or '',
             last_name=self.cleaned_data['last_name'],
             class_name=self.cleaned_data['class_name'],
             nationality=self.cleaned_data.get('nationality') or 'Nigeria',
             state_of_origin=self.cleaned_data.get('state_of_origin') or '',
             club_and_society=self.cleaned_data.get('club_and_society') or '',
-            sport_house=self.cleaned_data.get('sport_house') or '',
             date_of_birth=self.cleaned_data.get('date_of_birth'),
         )
 

@@ -45,6 +45,7 @@ class Student(models.Model):
     """Model for storing student information"""
     student_id = models.CharField(max_length=20, unique=True, db_index=True, help_text="Unique student ID")
     first_name = models.CharField(max_length=100)
+    other_names = models.CharField(max_length=100, blank=True, null=True)
     last_name = models.CharField(max_length=100)
     class_name = models.CharField(max_length=50, blank=True, null=True, help_text="Student's class (e.g., JSS1A, SS2B)")
     nationality = models.CharField(max_length=50, default='Nigeria')
@@ -65,7 +66,11 @@ class Student(models.Model):
         ]
     
     def __str__(self):
-        return f"{self.first_name} {self.last_name} ({self.student_id})"
+        return f"{self.full_name} ({self.student_id})"
+
+    @property
+    def full_name(self):
+        return ' '.join(part for part in [self.first_name, self.other_names, self.last_name] if part)
 
 
 class Subject(models.Model):

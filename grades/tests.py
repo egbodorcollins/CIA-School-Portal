@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
@@ -48,12 +48,12 @@ class StudentRegistrationTests(TestCase):
     def setUp(self):
         self.form_data = {
             'first_name': 'Jane',
+            'other_names': 'Amaka',
             'last_name': 'Doe',
             'class_name': 'Nursery 2',
             'nationality': 'Nigeria',
             'state_of_origin': 'Abuja',
             'club_and_society': '',
-            'sport_house': '',
             'date_of_birth': '2010-05-01',
             'password1': 'Strongpass123!',
             'password2': 'Strongpass123!',
@@ -69,7 +69,14 @@ class StudentRegistrationTests(TestCase):
 
         self.assertEqual(user.username, 'CIA/N22026/0001')
         self.assertTrue(User.objects.filter(username='CIA/N22026/0001').exists())
-        self.assertTrue(Student.objects.filter(student_id='CIA/N22026/0001', class_name='Nursery 2').exists())
+        self.assertTrue(Student.objects.filter(student_id='CIA/N22026/0001', class_name='Nursery 2', other_names='Amaka').exists())
+
+    def test_student_signup_form_collects_other_names_not_sport_house(self):
+        form = StudentSignUpForm()
+
+        self.assertIn('other_names', form.fields)
+        self.assertFalse(form.fields['other_names'].required)
+        self.assertNotIn('sport_house', form.fields)
 
     @patch('grades.forms.timezone.now')
     def test_generated_student_id_increments_hex_sequence(self, mock_now):
@@ -94,6 +101,33 @@ class StudentRegistrationTests(TestCase):
     def test_generate_student_id_rejects_unknown_class(self):
         with self.assertRaises(ValidationError):
             generate_student_id('Unknown Class')
+
+    @patch('grades.forms.timezone.now')
+    def test_preschool_class_teacher_can_register_student(self, mock_now):
+        mock_now.return_value = datetime(2026, 4, 27, tzinfo=dt_timezone.utc)
+        teacher = User.objects.create_user(username='preschoolteacher', password='pass12345')
+        teacher.profile.role = Profile.ROLE_CLASS_TEACHER
+        teacher.profile.assigned_class = 'Pre-School'
+        teacher.profile.save()
+        self.client.login(username='preschoolteacher', password='pass12345')
+
+        response = self.client.post(reverse('register_student'), data={
+            'first_name': 'Tomi',
+            'last_name': 'Ade',
+            'nationality': 'Nigeria',
+            'state_of_origin': 'Abuja',
+            'club_and_society': '',
+            'date_of_birth': '2021-05-01',
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Student profile created successfully')
+        self.assertTrue(Student.objects.filter(
+            student_id='CIA/PS2026/0001',
+            first_name='Tomi',
+            last_name='Ade',
+            class_name='Pre-School',
+        ).exists())
 
 
 class PortalRenderingTests(TestCase):
@@ -170,6 +204,13 @@ class PortalRenderingTests(TestCase):
         self.assertTemplateUsed(response, 'grades/register_student.html')
         self.assertContains(response, 'Register New Student')
 
+    @override_settings(DEBUG=True)
+    def test_127_home_redirects_to_localhost(self):
+        response = self.client.get('/', HTTP_HOST='127.0.0.1:8000')
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response['Location'], 'http://localhost:8000/')
+
     def test_register_student_invalid_post_renders_errors(self):
         self.client.login(username='teacher', password='pass12345')
 
@@ -191,7 +232,6 @@ class PortalRenderingTests(TestCase):
             'nationality': 'Nigeria',
             'state_of_origin': 'Lagos',
             'club_and_society': '',
-            'sport_house': '',
             'date_of_birth': '2011-01-01',
         }, follow=True)
 

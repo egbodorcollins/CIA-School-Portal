@@ -30,7 +30,7 @@
                                 <ul>
                                     {% for student in roster.students %}
                                         <li>
-                                            {{ student.student_id }} - {{ student.first_name }} {{ student.last_name }} ({{ student.class_name|default:'No Class' }})
+                                            {{ student.student_id }} - {{ student.full_name }} ({{ student.class_name|default:'No Class' }})
                                             <a href="{% url 'enter_academic_scores' %}?subject={{ roster.subject.pk }}&student={{ student.pk }}" class="button button-small" style="margin-left:8px;">Enter Scores</a>
                                         </li>
                                     {% endfor %}
@@ -49,7 +49,7 @@
                     <ul>
                         {% for student in students %}
                             <li>
-                                {{ student.student_id }} - {{ student.first_name }} {{ student.last_name }} ({{ student.class_name|default:'No Class' }})
+                                {{ student.student_id }} - {{ student.full_name }} ({{ student.class_name|default:'No Class' }})
                                 <a href="{% url 'enter_academic_scores' %}?student={{ student.pk }}" class="button button-small" style="margin-left:8px;">Enter Scores</a>
                             </li>
                         {% endfor %}

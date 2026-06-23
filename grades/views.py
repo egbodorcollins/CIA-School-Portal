@@ -1452,7 +1452,7 @@ def report_card_pdf(request):
         }
 
     pdf_bytes = build_report_card(
-        student_name=f'{student.first_name} {student.last_name}',
+        student_name=student.full_name,
         student_id=student.student_id,
         class_name=student.class_name or 'Not assigned',
         nationality=student.nationality,

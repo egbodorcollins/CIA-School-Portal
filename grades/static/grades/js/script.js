@@ -1,4 +1,4 @@
-document.addEventListener('DOMContentLoaded', () => {
+const initializePortal = () => {
   // --- Navigation & Account Menu Logic ---
   const navToggle = document.querySelector('.nav-toggle');
   const nav = document.querySelector('.top-nav');
@@ -93,5 +93,39 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // --- Dark Mode Toggle ---
+  const themeToggle = document.querySelector('.theme-toggle');
+  const themeKey = 'portalTheme';
+  const savedTheme = localStorage.getItem(themeKey);
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const bodyRoot = document.body;
+
+  const setTheme = (theme) => {
+    const darkMode = theme === 'dark';
+    bodyRoot.classList.toggle('dark-mode', darkMode);
+    if (themeToggle) {
+      themeToggle.setAttribute('aria-pressed', String(darkMode));
+      themeToggle.textContent = darkMode ? '☀️' : '🌙';
+      themeToggle.setAttribute('aria-label', darkMode ? 'Switch to light mode' : 'Switch to dark mode');
+    }
+  };
+
+  setTheme(savedTheme || (prefersDark ? 'dark' : 'light'));
+
+  if (themeToggle) {
+    themeToggle.addEventListener('click', () => {
+      const nextTheme = bodyRoot.classList.contains('dark-mode') ? 'light' : 'dark';
+      localStorage.setItem(themeKey, nextTheme);
+      setTheme(nextTheme);
+    });
+  }
+
   handleScroll(); // Initial check
-});
+};
+
+// Run immediately if DOM is ready, or wait for DOMContentLoaded
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initializePortal);
+} else {
+  initializePortal();
+}

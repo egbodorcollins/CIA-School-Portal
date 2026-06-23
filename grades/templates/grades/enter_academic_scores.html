@@ -33,7 +33,7 @@
                         <select id="student-select" name="student" onchange="this.form.submit()">
                             <option value="">-- Select student --</option>
                             {% for s in students %}
-                                <option value="{{ s.pk }}" {% if selected_student and s.pk == selected_student.pk %}selected{% endif %}>{{ s.first_name }} {{ s.last_name }} ({{ s.student_id }})</option>
+                                <option value="{{ s.pk }}" {% if selected_student and s.pk == selected_student.pk %}selected{% endif %}>{{ s.full_name }} ({{ s.student_id }})</option>
                             {% endfor %}
                         </select>
                         <noscript><button type="submit" class="button">Select</button></noscript>
@@ -56,7 +56,7 @@
                 {{ form.student }}
                 <div class="field-row">
                     <label>Selected Student</label>
-                    <div>{{ selected_student.first_name }} {{ selected_student.last_name }} ({{ selected_student.student_id }})
+                    <div>{{ selected_student.full_name }} ({{ selected_student.student_id }})
                         <a href="{% url 'enter_academic_scores' %}{% if selected_subject %}?subject={{ selected_subject.pk }}{% endif %}" class="button" style="margin-left:8px;">Change</a>
                     </div>
                 </div>
@@ -138,7 +138,7 @@
                             <tbody>
                                 {% for grade in grades %}
                                     <tr>
-                                        <td>{{ grade.student.first_name }} {{ grade.student.last_name }}</td>
+                                        <td>{{ grade.student.full_name }}</td>
                                         <td>{{ grade.subject.name }}</td>
                                         <td>{{ grade.homework }}</td>
                                         <td>{{ grade.class_work }}</td>
