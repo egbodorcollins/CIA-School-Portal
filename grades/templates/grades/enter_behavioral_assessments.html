@@ -85,7 +85,7 @@
                     <tbody>
                         {% for record in reports %}
                             <tr>
-                                <td>{{ record.student.first_name }} {{ record.student.last_name }}</td>
+                                <td>{{ record.student.full_name }}</td>
                                 <td>{{ record.times_present }}</td>
                                 <td>{{ record.remarks|default:'—' }}</td>
                                 <td>{{ record.date_recorded|date:'M j, Y' }}</td>

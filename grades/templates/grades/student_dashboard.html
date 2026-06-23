@@ -5,7 +5,7 @@
         <h2>Student Dashboard</h2>
         {% if student %}
             <div class="profile-block">
-                <p><strong>Name:</strong> {{ student.first_name }} {{ student.last_name }}</p>
+                <p><strong>Name:</strong> {{ student.full_name }}</p>
                 <p><strong>Student ID:</strong> {{ student.student_id }}</p>
                 <p><strong>Class:</strong> {{ student.class_name|default:'Not assigned' }}</p>
                 <p><strong>Nationality:</strong> {{ student.nationality }}</p>

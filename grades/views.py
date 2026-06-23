@@ -11,6 +11,7 @@ from django.contrib import messages
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import User
 from django.contrib.auth.views import LoginView
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_POST
 from reportlab.lib import colors
@@ -33,6 +34,7 @@ from .models import (
 )
 from django.db.models import Avg, Count, Q
 from .forms import (
+    AUTO_STUDENT_PASSWORD,
     StudentSignUpForm,
     GradeEntryForm,
     BehavioralGradeEntryForm,
@@ -130,6 +132,13 @@ class RateLimitedLoginView(LoginView):
     template_name = 'grades/login.html'
     redirect_authenticated_user = True
     authentication_form = CaseInsensitiveAuthenticationForm
+
+    def get_success_url(self):
+        user = self.request.user
+        if user.is_authenticated and user.check_password(AUTO_STUDENT_PASSWORD):
+            messages.info(self.request, 'Please change the default password before continuing.')
+            return reverse('password_change')
+        return super().get_success_url()
 
     # @ratelimit(key='ip', rate='5/m', method='POST')  # Disabled for development
     def post(self, request, *args, **kwargs):
@@ -1443,7 +1452,7 @@ def report_card_pdf(request):
         }
 
     pdf_bytes = build_report_card(
-        student_name=f'{student.first_name} {student.last_name}',
+        student_name=student.full_name,
         student_id=student.student_id,
         class_name=student.class_name or 'Not assigned',
         nationality=student.nationality,

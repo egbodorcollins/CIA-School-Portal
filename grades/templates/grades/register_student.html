@@ -24,6 +24,11 @@
                     {% for error in form.first_name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
                 <div class="field-row">
+                    {{ form.other_names.label_tag }}
+                    {{ form.other_names }}
+                    {% for error in form.other_names.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+                </div>
+                <div class="field-row">
                     {{ form.last_name.label_tag }}
                     {{ form.last_name }}
                     {% for error in form.last_name.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
@@ -50,11 +55,6 @@
                     {{ form.club_and_society.label_tag }}
                     {{ form.club_and_society }}
                     {% for error in form.club_and_society.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
-                </div>
-                <div class="field-row">
-                    {{ form.sport_house.label_tag }}
-                    {{ form.sport_house }}
-                    {% for error in form.sport_house.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
                 <div class="field-row">
                     {{ form.date_of_birth.label_tag }}

@@ -56,7 +56,7 @@
                                 made a change
                             {% endif %}
                             {% if act.target_subject %} in <em>{{ act.target_subject.name }}</em>{% endif %}
-                            {% if act.target_student %} for <em>{{ act.target_student.first_name }} {{ act.target_student.last_name }}</em> ({% if act.target_student.student_id %}{{ act.target_student.student_id }}{% endif %}){% endif %}
+                            {% if act.target_student %} for <em>{{ act.target_student.full_name }}</em> ({% if act.target_student.student_id %}{{ act.target_student.student_id }}{% endif %}){% endif %}
                         </div>
                         <div class="activity-meta">
                             <span class="muted">{{ act.created_at|date:'M j, Y H:i' }}</span>
