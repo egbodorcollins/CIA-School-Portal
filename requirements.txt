@@ -1,8 +1,9 @@
 Django==5.2.14
 python-decouple==3.8
+python-dotenv==1.2.2
 
 # PostgreSQL Database Adapter
-psycopg2-binary==2.9.12
+psycopg2==2.9.12
 
 # Excel File Handling
 openpyxl==3.1.5
