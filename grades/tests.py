@@ -23,6 +23,26 @@ class LoginTests(TestCase):
         self.assertRedirects(response, reverse('home'))
         self.assertEqual(int(self.client.session['_auth_user_id']), User.objects.get(username='CIA/J12026/0001').pk)
 
+    def test_default_password_login_redirects_to_password_change(self):
+        User.objects.create_user(username='CIA/B52026/0001', password=AUTO_STUDENT_PASSWORD)
+
+        response = self.client.post(
+            reverse('login'),
+            {'username': 'CIA/B52026/0001', 'password': AUTO_STUDENT_PASSWORD},
+        )
+
+        self.assertRedirects(response, reverse('password_change'))
+
+    def test_non_default_password_login_redirects_home(self):
+        User.objects.create_user(username='teacher', password='pass12345')
+
+        response = self.client.post(
+            reverse('login'),
+            {'username': 'teacher', 'password': 'pass12345'},
+        )
+
+        self.assertRedirects(response, reverse('home'))
+
 
 class StudentRegistrationTests(TestCase):
     def setUp(self):
