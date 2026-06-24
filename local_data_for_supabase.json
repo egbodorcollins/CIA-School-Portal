@@ -1,0 +1,460 @@
+[
+  {
+    "model": "auth.user",
+    "pk": 1,
+    "fields": {
+      "password": "pbkdf2_sha256$1000000$r3lOHCzEIPceUaN6ATCFhM$9n0jO7gCU1zA0BKsMW94YJx6VZVNaduWnX0WZwRbcgE=",
+      "last_login": "2026-06-23T23:58:02.909Z",
+      "is_superuser": false,
+      "username": "FuturisThurs",
+      "first_name": "Collins",
+      "last_name": "Egbodor",
+      "email": "futuristhurs@gmail.com",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:55:51.870Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 2,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$9uWpuZnqBuZ2odjdnp8lp3$teV4mx+MgIxtjbc7ZYDChMWYU6mpKj9YtKgSZ11qBck=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "BlessingSaturday",
+      "first_name": "Blessing",
+      "last_name": "Morris",
+      "email": "blessingmoris10@gmail.com",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:55:56.371Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 3,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$5N6tnCaBRjBd5hmeKMmfk4$v43fBrGAgsWHegrbAzOhdkoGCFmprZT7rmHfnas/vxo=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "Ohieku",
+      "first_name": "Margaret",
+      "last_name": "Ovaioza",
+      "email": "",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:00.353Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 4,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$GWzdK3ylKYzkf5yQRLBORM$jcrA+Gj1Yus7rsJgGcdIdCAzs0ALt1TmGhQtil/JyrQ=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "Franciscachidinma",
+      "first_name": "Francisca",
+      "last_name": "Chidinma",
+      "email": "franciscachidinma06@gmail.com",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:05.006Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 5,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$QsuA9ycD4dZcF1EKN5denj$LkRVx0zXDmBeyQbjif4TmL8/PVo/R7AHZstA0X0sDR8=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "Debbie",
+      "first_name": "Deborah",
+      "last_name": "Sunday",
+      "email": "",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:09.239Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 6,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$sL2ITIgTyUd6DncsjQKn5y$Ki1TmFvBYttev08iTDeFRDWNOfIBI3BdBpcQTrnR6dI=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "mamus",
+      "first_name": "Omamuromu",
+      "last_name": "Onibon",
+      "email": "adesbaibi@yahoo.com",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:13.576Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 7,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$XYLB8HwD3l8hG91l1UeF8w$5B4+soDILhJzrO2JLfL/G3Ic4QkGZI74e7FROlWKcyI=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "oluwabankeola",
+      "first_name": "Hellen",
+      "last_name": "Kolawole",
+      "email": "hellenkolawole@yahoo.com",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:18.360Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 8,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$0PVEvV0mSLIpAHmM6YOnGV$TP1CHAbSo3MJIHRgy0aRO7Frl4wUBG1klctQ0PfSByQ=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "MrProsper",
+      "first_name": "Prosper",
+      "last_name": "Friday",
+      "email": "prosperfriday888@gmail.com",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:23.190Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 9,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$T0twuCFJBVfwM56KxaA8eL$Hqv79loyQJxEt+gazKfbkXVpYbPfLp0ciuV+jxh7KHE=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "VictoriaIfeanyi",
+      "first_name": "Victoria",
+      "last_name": "Ifeanyi",
+      "email": "princessafia73@gmail.com",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:27.926Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 10,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$ejtkwPnYRxZV1JuFqETile$GSs+lazzPzXmYPhs8wbCk7zJM+P9oB6lsCFC2dYIhgM=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "dammy",
+      "first_name": "Damilola",
+      "last_name": "Abiire",
+      "email": "abidavikky23@gmail.com",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:33.412Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 11,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$rWAFLEcn9tfQ3T3QfGeEBe$k04cw4MfmR3CwRi6WrQMDjnr/xYXxvR76dMEyCmPW28=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "Emmanuel",
+      "first_name": "Emmanuel",
+      "last_name": "Ojehomon",
+      "email": "ojehomonemmanuel325@gmail.com",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:38.621Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 12,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$MOGWwLbIW2DLKYgq484JGr$zx6sKTqUxhfQNgeRyG3+XvzAJt0nTUZVNhFYQm9jBdA=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "Chinenye",
+      "first_name": "Chinenye",
+      "last_name": "Kanu",
+      "email": "giftadaora64@gmail.com",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:43.446Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 13,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$vrWunXjhc8l269VunjaxLI$nJyRaOWtZO7oU57kbyqJbXSOa20/flmjYNQhw16vnEA=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "Momo",
+      "first_name": "Victoria",
+      "last_name": "Adeniji",
+      "email": "",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:49.085Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 14,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$8y3z1Y180CKkRda6iSdDqu$hn850msQL4EiOk/ZByP3WXKnKBdRrn8uXy3kbXZBH00=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "Joshua",
+      "first_name": "Oluwamayowa",
+      "last_name": "Lewis",
+      "email": "",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:53.906Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "auth.user",
+    "pk": 15,
+    "fields": {
+      "password": "pbkdf2_sha256$1200000$7EySJ31jSqcUqjYNkr4Qpn$ZwPbINF/wcbJwlJil7bxL/4H13ZQzJdabemoDyZXSRk=",
+      "last_login": null,
+      "is_superuser": false,
+      "username": "Ottah",
+      "first_name": "Olamide",
+      "last_name": "Stephen",
+      "email": "",
+      "is_staff": true,
+      "is_active": true,
+      "date_joined": "2026-06-23T23:56:58.525Z",
+      "groups": [],
+      "user_permissions": []
+    }
+  },
+  {
+    "model": "sessions.session",
+    "pk": "x7uc1vhusna66djk99pd2ynmyvhblahf",
+    "fields": {
+      "session_data": ".eJxVjMEOwiAQBf-FsyEsbCl49N5vIMCCVA0kpT0Z_92Q9KDXNzPvzZw_9uKOnja3ErsyYJffLfj4THUAevh6bzy2um9r4EPhJ-18aZRet9P9Oyi-l1F7EZAUWJW1zmgQgpEiqwRegLFC5hkpTEZikCpStKTBzjCppDEJVOzzBc_XNwg:1wcB0H:_AlKgsLyv1oseaDH83r8OliJ5L5cdzBc7sLtU6PVWrs",
+      "expire_date": "2026-07-07T23:58:05.009Z"
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 1,
+    "fields": {
+      "user": 1,
+      "role": "subject_teacher",
+      "assigned_class": "",
+      "created_at": "2026-06-23T23:55:52.489Z",
+      "updated_at": "2026-06-23T23:55:55.036Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 2,
+    "fields": {
+      "user": 2,
+      "role": "class_teacher",
+      "assigned_class": "Pre-School",
+      "created_at": "2026-06-23T23:55:56.984Z",
+      "updated_at": "2026-06-23T23:55:59.411Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 3,
+    "fields": {
+      "user": 3,
+      "role": "subject_teacher",
+      "assigned_class": "",
+      "created_at": "2026-06-23T23:56:00.986Z",
+      "updated_at": "2026-06-23T23:56:03.831Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 4,
+    "fields": {
+      "user": 4,
+      "role": "class_teacher",
+      "assigned_class": "Basic 4",
+      "created_at": "2026-06-23T23:56:05.591Z",
+      "updated_at": "2026-06-23T23:56:08.301Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 5,
+    "fields": {
+      "user": 5,
+      "role": "class_teacher",
+      "assigned_class": "Nursery 1",
+      "created_at": "2026-06-23T23:56:09.921Z",
+      "updated_at": "2026-06-23T23:56:12.562Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 6,
+    "fields": {
+      "user": 6,
+      "role": "class_teacher",
+      "assigned_class": "SSS 1",
+      "created_at": "2026-06-23T23:56:14.254Z",
+      "updated_at": "2026-06-23T23:56:17.211Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 7,
+    "fields": {
+      "user": 7,
+      "role": "class_teacher",
+      "assigned_class": "Nursery 2",
+      "created_at": "2026-06-23T23:56:19.378Z",
+      "updated_at": "2026-06-23T23:56:22.162Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 8,
+    "fields": {
+      "user": 8,
+      "role": "class_teacher",
+      "assigned_class": "Basic 5",
+      "created_at": "2026-06-23T23:56:23.966Z",
+      "updated_at": "2026-06-23T23:56:26.896Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 9,
+    "fields": {
+      "user": 9,
+      "role": "class_teacher",
+      "assigned_class": "Basic 2",
+      "created_at": "2026-06-23T23:56:28.732Z",
+      "updated_at": "2026-06-23T23:56:31.846Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 10,
+    "fields": {
+      "user": 10,
+      "role": "class_teacher",
+      "assigned_class": "Basic 3",
+      "created_at": "2026-06-23T23:56:34.794Z",
+      "updated_at": "2026-06-23T23:56:37.458Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 11,
+    "fields": {
+      "user": 11,
+      "role": "subject_teacher",
+      "assigned_class": "",
+      "created_at": "2026-06-23T23:56:39.296Z",
+      "updated_at": "2026-06-23T23:56:41.961Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 12,
+    "fields": {
+      "user": 12,
+      "role": "subject_teacher",
+      "assigned_class": "",
+      "created_at": "2026-06-23T23:56:44.527Z",
+      "updated_at": "2026-06-23T23:56:47.778Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 13,
+    "fields": {
+      "user": 13,
+      "role": "subject_teacher",
+      "assigned_class": "",
+      "created_at": "2026-06-23T23:56:49.716Z",
+      "updated_at": "2026-06-23T23:56:52.642Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 14,
+    "fields": {
+      "user": 14,
+      "role": "subject_teacher",
+      "assigned_class": "",
+      "created_at": "2026-06-23T23:56:54.499Z",
+      "updated_at": "2026-06-23T23:56:57.333Z",
+      "assigned_subjects": []
+    }
+  },
+  {
+    "model": "grades.profile",
+    "pk": 15,
+    "fields": {
+      "user": 15,
+      "role": "subject_teacher",
+      "assigned_class": "",
+      "created_at": "2026-06-23T23:56:59.145Z",
+      "updated_at": "2026-06-23T23:57:01.985Z",
+      "assigned_subjects": []
+    }
+  }
+]
