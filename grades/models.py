@@ -133,6 +133,47 @@ class TermSetting(models.Model):
         return f'{self.current_academic_year} - {self.get_current_term_display()}'
 
 
+class ResultPublication(models.Model):
+    """Controls when a student's results become visible in the portal."""
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='result_publications')
+    academic_year = models.CharField(
+        max_length=9,
+        default=default_academic_year,
+        validators=[validate_academic_year],
+        help_text='Academic year for this result publication'
+    )
+    term = models.CharField(
+        max_length=20,
+        choices=TERM_CHOICES,
+        default='first_term',
+        help_text='Academic term for this result publication'
+    )
+    is_fee_cleared = models.BooleanField(
+        default=False,
+        help_text='Allow the student to view or print results after school fees are cleared.'
+    )
+    is_results_approved = models.BooleanField(
+        default=False,
+        help_text='Require school approval before releasing results to the student portal.'
+    )
+    approved_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='approved_result_publications')
+    approved_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'Result Publication'
+        verbose_name_plural = 'Result Publications'
+        unique_together = ['student', 'academic_year', 'term']
+
+    def __str__(self):
+        return f'{self.student} - {self.academic_year} {self.term}'
+
+    @property
+    def is_available(self):
+        return self.is_fee_cleared and self.is_results_approved
+
+
 class Grade(models.Model):
     """Model for storing student grades for each subject"""
     TERM_CHOICES = TERM_CHOICES

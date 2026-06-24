@@ -29,8 +29,8 @@ from .models import (
     Activity,
     Subject,
     ClassPromotionRequest,
+    ResultPublication,
     TERM_CHOICES,
-    TERM_MAP,
 )
 from django.db.models import Avg, Count, Q
 from .forms import (
@@ -126,6 +126,19 @@ def _student_result_period(student, requested_year=None, requested_term=None):
         term_options = [{'value': selected_term, 'label': _term_display(selected_term)}]
 
     return selected_year, selected_term, academic_year_options, term_options
+
+
+def _result_publication_for(student, academic_year, term):
+    return ResultPublication.objects.filter(
+        student=student,
+        academic_year=academic_year,
+        term=term,
+    ).first()
+
+
+def _result_access_allowed(student, academic_year, term):
+    publication = _result_publication_for(student, academic_year, term)
+    return bool(publication and publication.is_available)
 
 
 class RateLimitedLoginView(LoginView):
@@ -959,6 +972,8 @@ def student_dashboard(request):
     student = None
     grades = []
     behavioral_grades = []
+    result_access_allowed = False
+    publication = None
     selected_academic_year = request.GET.get('academic_year')
     selected_term = request.GET.get('term')
     academic_year_options = []
@@ -970,16 +985,24 @@ def student_dashboard(request):
             selected_academic_year,
             selected_term,
         )
-        grades = Grade.objects.filter(
-            student=student,
-            academic_year=selected_academic_year,
-            term=selected_term,
-        ).select_related('subject').order_by('subject__name')
-        behavioral_grades = BehavioralGrade.objects.filter(
-            student=student,
-            academic_year=selected_academic_year,
-            term=selected_term,
-        ).order_by('-term')
+        publication = _result_publication_for(student, selected_academic_year, selected_term)
+        result_access_allowed = _result_access_allowed(student, selected_academic_year, selected_term)
+        if result_access_allowed:
+            grades = Grade.objects.filter(
+                student=student,
+                academic_year=selected_academic_year,
+                term=selected_term,
+            ).select_related('subject').order_by('subject__name')
+            behavioral_grades = BehavioralGrade.objects.filter(
+                student=student,
+                academic_year=selected_academic_year,
+                term=selected_term,
+            ).order_by('-term')
+        else:
+            messages.info(
+                request,
+                'Results are currently locked. They will be available once outstanding fees are cleared and the school approves the result publication.',
+            )
     except Student.DoesNotExist:
         messages.info(request, 'No student profile was found for your username. Please contact administration.')
 
@@ -992,6 +1015,8 @@ def student_dashboard(request):
         'selected_term_display': _term_display(selected_term) if selected_term else '',
         'academic_year_options': academic_year_options,
         'term_options': term_options,
+        'result_access_allowed': result_access_allowed,
+        'publication': publication,
     })
 
 
@@ -1372,7 +1397,7 @@ def build_report_card(
     cv.drawCentredString(
         width / 2,
         y,
-        'This report is computer-generated and valid without a stamp. Corinasia International Academy, Abuja.',
+        'Official use requires the school stamp and authorised signature. This report is computer-generated for preview only.',
     )
 
     cv.showPage()
@@ -1393,6 +1418,9 @@ def report_card_pdf(request):
         request.GET.get('academic_year'),
         request.GET.get('term'),
     )
+    if not _result_access_allowed(student, selected_academic_year, selected_term):
+        messages.error(request, 'Results are not yet available. They become visible once fees are cleared and the school approves them.')
+        return redirect('student_dashboard')
     term_display = _term_display(selected_term)
 
     selected_grades = list(

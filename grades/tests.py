@@ -7,7 +7,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
-from .models import BehavioralGrade, ClassPromotionRequest, Grade, Profile, Student, Subject, TermSetting
+from .models import BehavioralGrade, ClassPromotionRequest, Grade, Profile, ResultPublication, Student, Subject, TermSetting
 from .views import _head_teacher_comment
 
 
@@ -363,6 +363,27 @@ class PortalRenderingTests(TestCase):
         self.assertNotContains(response, 'Class Analytics')
         self.assertNotContains(response, 'Ben Stone')
 
+    def test_student_dashboard_blocks_results_until_fee_and_approval_are_ready(self):
+        TermSetting.objects.create(current_academic_year='2025/2026', current_term='second_term')
+        student_user = User.objects.create_user(username='CIA/B52026/0001', password='pass12345')
+        student_user.profile.role = Profile.ROLE_STUDENT
+        student_user.profile.save()
+        student = Student.objects.create(
+            student_id='CIA/B52026/0001',
+            first_name='Gabriel',
+            last_name='Zion',
+            class_name='Basic 5',
+            nationality='Nigeria',
+        )
+        Subject.objects.create(code='MAT B52', name='Mathematics')
+        self.client.login(username='CIA/B52026/0001', password='pass12345')
+
+        response = self.client.get(reverse('student_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Results are currently locked')
+        self.assertNotContains(response, 'Academic Grades')
+
     def test_student_report_pdf_generates_printable_result(self):
         TermSetting.objects.create(current_academic_year='2025/2026', current_term='second_term')
         student_user = User.objects.create_user(username='CIA/B52026/0001', password='pass12345')
@@ -418,6 +439,13 @@ class PortalRenderingTests(TestCase):
             relationship_with_peers='A',
             times_present=108,
             remarks='Keep improving.',
+        )
+        ResultPublication.objects.create(
+            student=student,
+            academic_year='2025/2026',
+            term='second_term',
+            is_fee_cleared=True,
+            is_results_approved=True,
         )
         self.client.login(username='CIA/B52026/0001', password='pass12345')
 
