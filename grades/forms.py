@@ -73,6 +73,25 @@ def get_class_code(class_name):
     return CLASS_CODE_MAP.get(normalize_class_name(class_name))
 
 
+def normalize_name(value):
+    if value is None:
+        return ''
+
+    normalized_parts = []
+    for part in str(value).strip().split():
+        if "'" in part:
+            segments = part.split("'")
+            part = "'".join(segment[:1].upper() + segment[1:].lower() for segment in segments)
+        elif "-" in part:
+            segments = part.split("-")
+            part = "-".join(segment[:1].upper() + segment[1:].lower() for segment in segments)
+        else:
+            part = part[:1].upper() + part[1:].lower()
+        normalized_parts.append(part)
+
+    return ' '.join(normalized_parts)
+
+
 def generate_student_id(class_name):
     class_code = get_class_code(class_name)
     if not class_code:
@@ -154,6 +173,15 @@ class StudentSignUpForm(forms.Form):
         if not get_class_code(class_name):
             raise ValidationError('Please choose a supported class name.')
         return class_name
+
+    def clean_first_name(self):
+        return normalize_name(self.cleaned_data.get('first_name', ''))
+
+    def clean_other_names(self):
+        return normalize_name(self.cleaned_data.get('other_names', ''))
+
+    def clean_last_name(self):
+        return normalize_name(self.cleaned_data.get('last_name', ''))
 
     def clean_date_of_birth(self):
         date_of_birth = self.cleaned_data.get('date_of_birth')

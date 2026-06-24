@@ -1,0 +1,136 @@
+{% extends 'grades/base.html' %}
+{% block content %}
+<div class="dashboard-shell">
+    <div class="dashboard-card release-page">
+        <div class="release-header">
+            <div>
+                <h2>Result Releases</h2>
+                <p class="helper-text">Control which students can view and download results for each term.</p>
+            </div>
+            <a class="button button-secondary" href="{% url 'teacher_dashboard' %}">Back to Dashboard</a>
+        </div>
+
+        <div class="release-stats" aria-label="Result release summary">
+            <div class="release-stat">
+                <span>Total Students</span>
+                <strong>{{ student_count }}</strong>
+            </div>
+            <div class="release-stat">
+                <span>Fees Cleared</span>
+                <strong>{{ fee_cleared_count }}</strong>
+            </div>
+            <div class="release-stat">
+                <span>Approved</span>
+                <strong>{{ approved_count }}</strong>
+            </div>
+            <div class="release-stat">
+                <span>Visible Results</span>
+                <strong>{{ released_count }}</strong>
+            </div>
+            <div class="release-stat">
+                <span>Locked</span>
+                <strong>{{ locked_count }}</strong>
+            </div>
+        </div>
+
+        <form method="get" class="release-filters">
+            <div class="field-row">
+                <label for="academic-year">Academic Year</label>
+                <input id="academic-year" type="text" name="academic_year" value="{{ selected_academic_year }}" placeholder="2025/2026">
+            </div>
+            <div class="field-row">
+                <label for="term">Term</label>
+                <select id="term" name="term">
+                    {% for term in term_options %}
+                        <option value="{{ term.value }}" {% if term.value == selected_term %}selected{% endif %}>{{ term.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field-row">
+                <label for="class">Class</label>
+                <select id="class" name="class">
+                    <option value="">All classes</option>
+                    {% for class_name in class_options %}
+                        <option value="{{ class_name }}" {% if class_name == selected_class %}selected{% endif %}>{{ class_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field-row release-search">
+                <label for="q">Search</label>
+                <input id="q" type="search" name="q" value="{{ search }}" placeholder="Name or student ID">
+            </div>
+            <button type="submit" class="button button-secondary">Filter</button>
+        </form>
+
+        {% if rows %}
+            <form method="post" class="release-form">
+                {% csrf_token %}
+                <input type="hidden" name="academic_year" value="{{ selected_academic_year }}">
+                <input type="hidden" name="term" value="{{ selected_term }}">
+                <input type="hidden" name="class" value="{{ selected_class }}">
+                <input type="hidden" name="q" value="{{ search }}">
+
+                <div class="grades-table release-table">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Student</th>
+                                <th>Class</th>
+                                <th>Fees Cleared</th>
+                                <th>Results Approved</th>
+                                <th>Status</th>
+                                <th>Approved By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in rows %}
+                                <tr>
+                                    <td>
+                                        <strong>{{ row.student.full_name }}</strong>
+                                        <span class="table-muted">{{ row.student.student_id }}</span>
+                                        <input type="hidden" name="student_pks" value="{{ row.student.pk }}">
+                                    </td>
+                                    <td>{{ row.student.class_name|default:'No Class' }}</td>
+                                    <td>
+                                        <label class="switch-control">
+                                            <input type="checkbox" name="fee_cleared_{{ row.student.pk }}" {% if row.is_fee_cleared %}checked{% endif %}>
+                                            <span>Fees cleared</span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        <label class="switch-control">
+                                            <input type="checkbox" name="results_approved_{{ row.student.pk }}" {% if row.is_results_approved %}checked{% endif %}>
+                                            <span>Approved</span>
+                                        </label>
+                                    </td>
+                                    <td>
+                                        {% if row.is_available %}
+                                            <span class="status-pill status-open">Visible</span>
+                                        {% else %}
+                                            <span class="status-pill status-locked">Locked</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if row.publication.approved_by %}
+                                            {{ row.publication.approved_by.get_full_name|default:row.publication.approved_by.username }}
+                                            <span class="table-muted">{{ row.publication.approved_at|date:'M j, Y g:i A' }}</span>
+                                        {% else %}
+                                            <span class="table-muted">Not approved</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="release-actions">
+                    <button type="submit" class="button button-primary">Save Release Settings</button>
+                </div>
+            </form>
+        {% else %}
+            <p class="empty-state">No students match the selected filters.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

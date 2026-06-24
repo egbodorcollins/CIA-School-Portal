@@ -1075,6 +1075,107 @@ textarea { resize: vertical; min-height: 80px; }
 #end-of-year-promotion h3 { color: var(--red); margin-bottom: var(--sp-3); }
 
 /* ============================================================
+   RESULT RELEASES
+   ============================================================ */
+.release-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+}
+
+.release-header,
+.release-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+}
+
+.release-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--sp-3);
+}
+
+.release-stat {
+  background: var(--surface-2);
+  border: 1px solid var(--border-light);
+  border-radius: var(--r-md);
+  padding: var(--sp-4);
+}
+
+.release-stat span,
+.table-muted {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.release-stat strong {
+  display: block;
+  margin-top: var(--sp-1);
+  color: var(--red);
+  font-size: var(--font-size-2xl);
+  line-height: 1.1;
+}
+
+.release-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(140px, 1fr)) auto;
+  gap: var(--sp-3);
+  align-items: end;
+  background: var(--surface-2);
+  border: 1px solid var(--border-light);
+  border-radius: var(--r-lg);
+  padding: var(--sp-4);
+}
+
+.release-search { min-width: 180px; }
+
+.release-table table { min-width: 860px; }
+
+.switch-control {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 32px;
+  color: var(--text-secondary);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.switch-control input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--red);
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 72px;
+  padding: 5px 10px;
+  border-radius: var(--r-pill);
+  font-size: var(--font-size-xs);
+  font-weight: 800;
+}
+
+.status-open {
+  color: #176d3a;
+  background: rgba(23,109,58,0.1);
+  border: 1px solid rgba(23,109,58,0.18);
+}
+
+.status-locked {
+  color: #8c1320;
+  background: rgba(200,26,38,0.09);
+  border: 1px solid rgba(200,26,38,0.18);
+}
+
+/* ============================================================
    PROFILE / STUDENT DASHBOARD
    ============================================================ */
 .profile-block {
@@ -1246,6 +1347,7 @@ textarea { resize: vertical; min-height: 80px; }
   .analytics-summary { grid-template-columns: repeat(3, 1fr); }
 
   .teacher-actions { gap: var(--sp-2); }
+  .release-filters { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
 
   /* Cards */
   .dashboard-card,
@@ -1302,6 +1404,9 @@ textarea { resize: vertical; min-height: 80px; }
   /* Buttons */
   .teacher-actions { flex-direction: column; gap: var(--sp-2); }
   .teacher-actions .button { width: 100%; justify-content: center; }
+  .release-filters { grid-template-columns: 1fr; }
+  .release-actions .button,
+  .release-header .button { width: 100%; }
 
   .hero-actions { flex-direction: column; gap: var(--sp-2); }
   .hero-actions .button { width: 100%; justify-content: center; }

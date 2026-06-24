@@ -71,6 +71,26 @@ class StudentRegistrationTests(TestCase):
         self.assertTrue(User.objects.filter(username='CIA/N22026/0001').exists())
         self.assertTrue(Student.objects.filter(student_id='CIA/N22026/0001', class_name='Nursery 2', other_names='Amaka').exists())
 
+    @patch('grades.forms.timezone.now')
+    def test_student_names_are_saved_in_sentence_case(self, mock_now):
+        mock_now.return_value = datetime(2026, 4, 27, tzinfo=dt_timezone.utc)
+        form = StudentSignUpForm(data={
+            **self.form_data,
+            'first_name': 'jOHN',
+            'other_names': 'mARY aNNE',
+            'last_name': 'doe',
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+        user = form.save()
+
+        self.assertEqual(user.first_name, 'John')
+        self.assertEqual(user.last_name, 'Doe')
+        student = Student.objects.get(student_id=user.username)
+        self.assertEqual(student.first_name, 'John')
+        self.assertEqual(student.other_names, 'Mary Anne')
+        self.assertEqual(student.last_name, 'Doe')
+
     def test_student_signup_form_collects_other_names_not_sport_house(self):
         form = StudentSignUpForm()
 
@@ -186,6 +206,63 @@ class PortalRenderingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'End-of-Year Student Promotion Approvals')
         self.assertContains(response, f"{reverse('manage_students')}#end-of-year-promotion")
+
+    def test_portal_admin_header_links_to_result_releases(self):
+        admin_user = User.objects.create_user(username='portaladmin', password='pass12345')
+        admin_user.profile.role = Profile.ROLE_ADMIN
+        admin_user.profile.save()
+        self.client.login(username='portaladmin', password='pass12345')
+
+        response = self.client.get(reverse('result_publications'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Result Releases')
+        self.assertContains(response, reverse('result_publications'))
+        self.assertNotContains(response, reverse('admin:index'))
+
+    def test_result_release_page_updates_fee_and_approval(self):
+        admin_user = User.objects.create_user(username='portaladmin', password='pass12345')
+        admin_user.profile.role = Profile.ROLE_ADMIN
+        admin_user.profile.save()
+        student = Student.objects.create(
+            student_id='CIA/B52026/0001',
+            first_name='Gabriel',
+            last_name='Zion',
+            class_name='Basic 5',
+        )
+        self.client.login(username='portaladmin', password='pass12345')
+
+        response = self.client.post(reverse('result_publications'), {
+            'academic_year': '2025/2026',
+            'term': 'second_term',
+            'class': 'Basic 5',
+            'student_pks': [student.pk],
+            f'fee_cleared_{student.pk}': 'on',
+            f'results_approved_{student.pk}': 'on',
+        }, follow=True)
+
+        publication = ResultPublication.objects.get(
+            student=student,
+            academic_year='2025/2026',
+            term='second_term',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Result release settings updated for 1 student')
+        self.assertTrue(publication.is_fee_cleared)
+        self.assertTrue(publication.is_results_approved)
+        self.assertEqual(publication.approved_by, admin_user)
+        self.assertIsNotNone(publication.approved_at)
+        self.assertTrue(publication.is_available)
+
+    def test_student_cannot_access_result_release_page(self):
+        student_user = User.objects.create_user(username='CIA/B52026/0001', password='pass12345')
+        student_user.profile.role = Profile.ROLE_STUDENT
+        student_user.profile.save()
+        self.client.login(username='CIA/B52026/0001', password='pass12345')
+
+        response = self.client.get(reverse('result_publications'))
+
+        self.assertEqual(response.status_code, 302)
 
     def test_password_change_page_renders(self):
         self.client.login(username='teacher', password='pass12345')

@@ -70,7 +70,7 @@ class Student(models.Model):
 
     @property
     def full_name(self):
-        return ' '.join(part for part in [self.first_name, self.other_names, self.last_name] if part)
+        return ' '.join(part for part in [self.last_name, self.first_name, self.other_names] if part)
 
 
 class Subject(models.Model):
