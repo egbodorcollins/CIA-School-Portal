@@ -91,6 +91,25 @@ class StudentRegistrationTests(TestCase):
         self.assertEqual(student.other_names, 'Mary Anne')
         self.assertEqual(student.last_name, 'Doe')
 
+    def test_duplicate_student_name_in_same_class_is_rejected(self):
+        Student.objects.create(
+            student_id='CIA/N22026/0001',
+            first_name='John',
+            last_name='Doe',
+            class_name='Nursery 2',
+        )
+
+        form = StudentSignUpForm(data={
+            **self.form_data,
+            'first_name': 'john',
+            'last_name': 'doe',
+            'class_name': 'Nursery 2',
+        })
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('__all__', form.errors)
+        self.assertEqual(Student.objects.filter(first_name='John', last_name='Doe', class_name='Nursery 2').count(), 1)
+
     def test_student_signup_form_collects_other_names_not_sport_house(self):
         form = StudentSignUpForm()
 
