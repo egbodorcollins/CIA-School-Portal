@@ -34,7 +34,7 @@
                         {% if portal_user_profile.role == 'class_teacher' or portal_user_profile.role == 'subject_teacher' %}
                             <a href="{% url 'teacher_dashboard' %}">Teacher Dashboard</a>
                         {% elif portal_user_profile.role == 'admin' %}
-                            <a href="{% url 'admin:index' %}">Admin Dashboard</a>
+                            <a href="{% url 'result_publications' %}">Result Releases</a>
                         {% else %}
                             <a href="{% url 'student_dashboard' %}">Student Dashboard</a>
                         {% endif %}

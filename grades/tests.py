@@ -7,7 +7,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
-from .models import BehavioralGrade, ClassPromotionRequest, Grade, Profile, Student, Subject, TermSetting
+from .models import BehavioralGrade, ClassPromotionRequest, Grade, Profile, ResultPublication, Student, Subject, TermSetting
 from .views import _head_teacher_comment
 
 
@@ -70,6 +70,45 @@ class StudentRegistrationTests(TestCase):
         self.assertEqual(user.username, 'CIA/N22026/0001')
         self.assertTrue(User.objects.filter(username='CIA/N22026/0001').exists())
         self.assertTrue(Student.objects.filter(student_id='CIA/N22026/0001', class_name='Nursery 2', other_names='Amaka').exists())
+
+    @patch('grades.forms.timezone.now')
+    def test_student_names_are_saved_in_sentence_case(self, mock_now):
+        mock_now.return_value = datetime(2026, 4, 27, tzinfo=dt_timezone.utc)
+        form = StudentSignUpForm(data={
+            **self.form_data,
+            'first_name': 'jOHN',
+            'other_names': 'mARY aNNE',
+            'last_name': 'doe',
+        })
+
+        self.assertTrue(form.is_valid(), form.errors)
+        user = form.save()
+
+        self.assertEqual(user.first_name, 'John')
+        self.assertEqual(user.last_name, 'Doe')
+        student = Student.objects.get(student_id=user.username)
+        self.assertEqual(student.first_name, 'John')
+        self.assertEqual(student.other_names, 'Mary Anne')
+        self.assertEqual(student.last_name, 'Doe')
+
+    def test_duplicate_student_name_in_same_class_is_rejected(self):
+        Student.objects.create(
+            student_id='CIA/N22026/0001',
+            first_name='John',
+            last_name='Doe',
+            class_name='Nursery 2',
+        )
+
+        form = StudentSignUpForm(data={
+            **self.form_data,
+            'first_name': 'john',
+            'last_name': 'doe',
+            'class_name': 'Nursery 2',
+        })
+
+        self.assertFalse(form.is_valid())
+        self.assertIn('__all__', form.errors)
+        self.assertEqual(Student.objects.filter(first_name='John', last_name='Doe', class_name='Nursery 2').count(), 1)
 
     def test_student_signup_form_collects_other_names_not_sport_house(self):
         form = StudentSignUpForm()
@@ -186,6 +225,63 @@ class PortalRenderingTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'End-of-Year Student Promotion Approvals')
         self.assertContains(response, f"{reverse('manage_students')}#end-of-year-promotion")
+
+    def test_portal_admin_header_links_to_result_releases(self):
+        admin_user = User.objects.create_user(username='portaladmin', password='pass12345')
+        admin_user.profile.role = Profile.ROLE_ADMIN
+        admin_user.profile.save()
+        self.client.login(username='portaladmin', password='pass12345')
+
+        response = self.client.get(reverse('result_publications'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Result Releases')
+        self.assertContains(response, reverse('result_publications'))
+        self.assertNotContains(response, reverse('admin:index'))
+
+    def test_result_release_page_updates_fee_and_approval(self):
+        admin_user = User.objects.create_user(username='portaladmin', password='pass12345')
+        admin_user.profile.role = Profile.ROLE_ADMIN
+        admin_user.profile.save()
+        student = Student.objects.create(
+            student_id='CIA/B52026/0001',
+            first_name='Gabriel',
+            last_name='Zion',
+            class_name='Basic 5',
+        )
+        self.client.login(username='portaladmin', password='pass12345')
+
+        response = self.client.post(reverse('result_publications'), {
+            'academic_year': '2025/2026',
+            'term': 'second_term',
+            'class': 'Basic 5',
+            'student_pks': [student.pk],
+            f'fee_cleared_{student.pk}': 'on',
+            f'results_approved_{student.pk}': 'on',
+        }, follow=True)
+
+        publication = ResultPublication.objects.get(
+            student=student,
+            academic_year='2025/2026',
+            term='second_term',
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Result release settings updated for 1 student')
+        self.assertTrue(publication.is_fee_cleared)
+        self.assertTrue(publication.is_results_approved)
+        self.assertEqual(publication.approved_by, admin_user)
+        self.assertIsNotNone(publication.approved_at)
+        self.assertTrue(publication.is_available)
+
+    def test_student_cannot_access_result_release_page(self):
+        student_user = User.objects.create_user(username='CIA/B52026/0001', password='pass12345')
+        student_user.profile.role = Profile.ROLE_STUDENT
+        student_user.profile.save()
+        self.client.login(username='CIA/B52026/0001', password='pass12345')
+
+        response = self.client.get(reverse('result_publications'))
+
+        self.assertEqual(response.status_code, 302)
 
     def test_password_change_page_renders(self):
         self.client.login(username='teacher', password='pass12345')
@@ -337,6 +433,51 @@ class PortalRenderingTests(TestCase):
         self.assertNotContains(response, 'Ben Stone')
         self.assertNotContains(response, 'English Studies')
 
+    def test_subject_teacher_can_update_single_score_without_overwriting_other_components(self):
+        TermSetting.objects.create(current_term='first_term')
+        math = Subject.objects.create(code='MAT B51', name='Mathematics')
+        ada = Student.objects.create(student_id='CIA/B52026/0001', first_name='Ada', last_name='King', class_name='Basic 5')
+        ada.subjects.add(math)
+        Grade.objects.create(
+            student=ada,
+            subject=math,
+            academic_year='2025/2026',
+            term='first_term',
+            homework=5,
+            class_work=10,
+            project=5,
+            first_test=10,
+            midterm_test=10,
+            exam=55,
+        )
+        subject_teacher = User.objects.create_user(username='mathteacher', password='pass12345')
+        subject_teacher.profile.role = Profile.ROLE_SUBJECT_TEACHER
+        subject_teacher.profile.save()
+        subject_teacher.profile.assigned_subjects.add(math)
+        self.client.login(username='mathteacher', password='pass12345')
+
+        response = self.client.post(reverse('enter_academic_scores'), {
+            'student': ada.pk,
+            'subject': math.pk,
+            'exam': '59',
+            'homework': '',
+            'class_work': '',
+            'project': '',
+            'first_test': '',
+            'midterm_test': '',
+            'remarks': '',
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        grade = Grade.objects.get(student=ada, subject=math, academic_year='2025/2026', term='first_term')
+        self.assertEqual(grade.homework, 5)
+        self.assertEqual(grade.class_work, 10)
+        self.assertEqual(grade.project, 5)
+        self.assertEqual(grade.first_test, 10)
+        self.assertEqual(grade.midterm_test, 10)
+        self.assertEqual(grade.exam, 59)
+        self.assertEqual(grade.marks, 99)
+
     def test_subject_teacher_analytics_uses_subject_scope(self):
         TermSetting.objects.create(current_term='first_term')
         math = Subject.objects.create(code='MAT B51', name='Mathematics')
@@ -362,6 +503,27 @@ class PortalRenderingTests(TestCase):
         self.assertContains(response, 'Ada King')
         self.assertNotContains(response, 'Class Analytics')
         self.assertNotContains(response, 'Ben Stone')
+
+    def test_student_dashboard_blocks_results_until_fee_and_approval_are_ready(self):
+        TermSetting.objects.create(current_academic_year='2025/2026', current_term='second_term')
+        student_user = User.objects.create_user(username='CIA/B52026/0001', password='pass12345')
+        student_user.profile.role = Profile.ROLE_STUDENT
+        student_user.profile.save()
+        student = Student.objects.create(
+            student_id='CIA/B52026/0001',
+            first_name='Gabriel',
+            last_name='Zion',
+            class_name='Basic 5',
+            nationality='Nigeria',
+        )
+        Subject.objects.create(code='MAT B52', name='Mathematics')
+        self.client.login(username='CIA/B52026/0001', password='pass12345')
+
+        response = self.client.get(reverse('student_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Results are currently locked')
+        self.assertNotContains(response, 'Academic Grades')
 
     def test_student_report_pdf_generates_printable_result(self):
         TermSetting.objects.create(current_academic_year='2025/2026', current_term='second_term')
@@ -418,6 +580,13 @@ class PortalRenderingTests(TestCase):
             relationship_with_peers='A',
             times_present=108,
             remarks='Keep improving.',
+        )
+        ResultPublication.objects.create(
+            student=student,
+            academic_year='2025/2026',
+            term='second_term',
+            is_fee_cleared=True,
+            is_results_approved=True,
         )
         self.client.login(username='CIA/B52026/0001', password='pass12345')
 

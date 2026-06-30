@@ -1,6 +1,8 @@
 from io import BytesIO
 import os
+from urllib.parse import urlencode
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.shortcuts import render, redirect
 from django.http import HttpResponse
 from django.db import transaction
@@ -29,8 +31,9 @@ from .models import (
     Activity,
     Subject,
     ClassPromotionRequest,
+    ResultPublication,
     TERM_CHOICES,
-    TERM_MAP,
+    validate_academic_year,
 )
 from django.db.models import Avg, Count, Q
 from .forms import (
@@ -38,6 +41,7 @@ from .forms import (
     StudentSignUpForm,
     GradeEntryForm,
     BehavioralGradeEntryForm,
+    TermSettingForm,
     TeacherCreationForm,
     enroll_student_in_standard_subjects,
     get_class_code,
@@ -126,6 +130,75 @@ def _student_result_period(student, requested_year=None, requested_term=None):
         term_options = [{'value': selected_term, 'label': _term_display(selected_term)}]
 
     return selected_year, selected_term, academic_year_options, term_options
+
+
+def _result_publication_for(student, academic_year, term):
+    return ResultPublication.objects.filter(
+        student=student,
+        academic_year=academic_year,
+        term=term,
+    ).first()
+
+
+def _result_access_allowed(student, academic_year, term):
+    publication = _result_publication_for(student, academic_year, term)
+    return bool(publication and publication.is_available)
+
+
+def _class_options():
+    return list(
+        Student.objects.exclude(class_name__isnull=True)
+        .exclude(class_name='')
+        .order_by('class_name')
+        .values_list('class_name', flat=True)
+        .distinct()
+    )
+
+
+def _admin_dashboard_context():
+    current_academic_year, current_term = _current_period()
+    current_publications = ResultPublication.objects.filter(
+        academic_year=current_academic_year,
+        term=current_term,
+    )
+    released_count = current_publications.filter(
+        is_fee_cleared=True,
+        is_results_approved=True,
+    ).count()
+    fee_cleared_count = current_publications.filter(is_fee_cleared=True).count()
+    approved_count = current_publications.filter(is_results_approved=True).count()
+    total_students = Student.objects.count()
+    staff_profiles = Profile.objects.exclude(role=Profile.ROLE_STUDENT)
+    pending_promotions = ClassPromotionRequest.objects.filter(
+        status=ClassPromotionRequest.STATUS_PENDING,
+    ).select_related('requested_by')[:6]
+
+    return {
+        'current_academic_year': current_academic_year,
+        'current_term': current_term,
+        'current_term_display': _term_display(current_term),
+        'total_students': total_students,
+        'total_staff': staff_profiles.count(),
+        'admin_staff_count': staff_profiles.filter(role=Profile.ROLE_ADMIN).count(),
+        'teacher_count': staff_profiles.filter(
+            role__in=[Profile.ROLE_CLASS_TEACHER, Profile.ROLE_SUBJECT_TEACHER],
+        ).count(),
+        'class_count': Student.objects.exclude(class_name__isnull=True).exclude(class_name='').values('class_name').distinct().count(),
+        'grade_count': Grade.objects.filter(academic_year=current_academic_year, term=current_term).count(),
+        'behavioral_count': BehavioralGrade.objects.filter(academic_year=current_academic_year, term=current_term).count(),
+        'released_count': released_count,
+        'fee_cleared_count': fee_cleared_count,
+        'approved_count': approved_count,
+        'locked_count': max(total_students - released_count, 0),
+        'pending_promotion_count': ClassPromotionRequest.objects.filter(status=ClassPromotionRequest.STATUS_PENDING).count(),
+        'pending_promotions': pending_promotions,
+        'class_summaries': Student.objects.exclude(class_name__isnull=True)
+        .exclude(class_name='')
+        .values('class_name')
+        .annotate(student_count=Count('id'))
+        .order_by('class_name'),
+        'recent_activities': Activity.objects.select_related('actor', 'target_student', 'target_subject')[:10],
+    }
 
 
 class RateLimitedLoginView(LoginView):
@@ -317,6 +390,12 @@ def logout_view(request):
 
 
 @login_required
+@admin_required
+def admin_dashboard(request):
+    return render(request, 'grades/admin_dashboard.html', _admin_dashboard_context())
+
+
+@login_required
 def teacher_dashboard(request):
     profile = getattr(request.user, 'profile', None)
 
@@ -376,6 +455,118 @@ def teacher_dashboard(request):
         'assigned_subjects': assigned_subjects,
         'subject_rosters': subject_rosters,
         'can_request_promotion': profile.role == Profile.ROLE_CLASS_TEACHER or _user_can_approve_promotions(request.user, profile),
+        'can_manage_result_publications': _user_can_approve_promotions(request.user, profile),
+    })
+
+
+@login_required
+@admin_required
+def result_publications(request):
+    current_academic_year, current_term = _current_period()
+    selected_academic_year = request.GET.get('academic_year') or request.POST.get('academic_year') or current_academic_year
+    selected_term = request.GET.get('term') or request.POST.get('term') or current_term
+    selected_class = request.GET.get('class') or request.POST.get('class') or ''
+    search = (request.GET.get('q') or request.POST.get('q') or '').strip()
+    valid_terms = {value for value, _label in TERM_CHOICES}
+    if selected_term not in valid_terms:
+        selected_term = current_term
+    try:
+        validate_academic_year(selected_academic_year)
+    except ValidationError:
+        selected_academic_year = current_academic_year
+
+    students = Student.objects.all().order_by('class_name', 'last_name', 'first_name')
+    if selected_class:
+        students = students.filter(class_name=selected_class)
+    if search:
+        students = students.filter(
+            Q(first_name__icontains=search)
+            | Q(other_names__icontains=search)
+            | Q(last_name__icontains=search)
+            | Q(student_id__icontains=search)
+        )
+
+    students = list(students)
+
+    if request.method == 'POST':
+        visible_student_ids = [int(pk) for pk in request.POST.getlist('student_pks') if str(pk).isdigit()]
+        student_map = {student.pk: student for student in students}
+        updated_count = 0
+
+        with transaction.atomic():
+            for student_pk in visible_student_ids:
+                student = student_map.get(student_pk)
+                if not student:
+                    continue
+
+                is_fee_cleared = request.POST.get(f'fee_cleared_{student_pk}') == 'on'
+                is_results_approved = request.POST.get(f'results_approved_{student_pk}') == 'on'
+                publication, _created = ResultPublication.objects.get_or_create(
+                    student=student,
+                    academic_year=selected_academic_year,
+                    term=selected_term,
+                )
+                publication.is_fee_cleared = is_fee_cleared
+                publication.is_results_approved = is_results_approved
+                if is_results_approved:
+                    if not publication.approved_by:
+                        publication.approved_by = request.user
+                    if not publication.approved_at:
+                        publication.approved_at = timezone.now()
+                else:
+                    publication.approved_by = None
+                    publication.approved_at = None
+                publication.save()
+                updated_count += 1
+
+        messages.success(request, f'Result release settings updated for {updated_count} student(s).')
+        query = {
+            'academic_year': selected_academic_year,
+            'term': selected_term,
+        }
+        if selected_class:
+            query['class'] = selected_class
+        if search:
+            query['q'] = search
+        redirect_url = f"{reverse('result_publications')}?{urlencode(query)}"
+        return redirect(redirect_url)
+
+    publications = {
+        publication.student_id: publication
+        for publication in ResultPublication.objects.filter(
+            student__in=students,
+            academic_year=selected_academic_year,
+            term=selected_term,
+        ).select_related('approved_by')
+    }
+    rows = []
+    for student in students:
+        publication = publications.get(student.pk)
+        rows.append({
+            'student': student,
+            'publication': publication,
+            'is_fee_cleared': bool(publication and publication.is_fee_cleared),
+            'is_results_approved': bool(publication and publication.is_results_approved),
+            'is_available': bool(publication and publication.is_available),
+        })
+
+    released_count = sum(1 for row in rows if row['is_available'])
+    fee_cleared_count = sum(1 for row in rows if row['is_fee_cleared'])
+    approved_count = sum(1 for row in rows if row['is_results_approved'])
+
+    return render(request, 'grades/result_publications.html', {
+        'rows': rows,
+        'class_options': _class_options(),
+        'term_options': [{'value': value, 'label': label} for value, label in TERM_CHOICES],
+        'selected_academic_year': selected_academic_year,
+        'selected_term': selected_term,
+        'selected_class': selected_class,
+        'search': search,
+        'student_count': len(rows),
+        'released_count': released_count,
+        'locked_count': len(rows) - released_count,
+        'fee_cleared_count': fee_cleared_count,
+        'approved_count': approved_count,
     })
 
 
@@ -523,8 +714,20 @@ def class_analytics(request):
 @login_required
 @admin_required
 def set_current_term(request):
-    messages.info(request, 'Current academic term is managed in the Django admin dashboard.')
-    return redirect('admin:grades_termsetting_changelist')
+    term_setting = TermSetting.objects.order_by('-updated_at').first()
+    if request.method == 'POST':
+        form = TermSettingForm(request.POST, instance=term_setting)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Current academic period updated successfully.')
+            return redirect('admin_dashboard')
+    else:
+        form = TermSettingForm(instance=term_setting)
+
+    return render(request, 'grades/set_current_term.html', {
+        'form': form,
+        'term_setting': term_setting,
+    })
 
 
 @login_required
@@ -576,19 +779,25 @@ def enter_academic_scores(request):
 
         if form.is_valid():
             data = form.cleaned_data
+            existing_grade = Grade.objects.filter(
+                student=data['student'],
+                subject=data['subject'],
+                academic_year=current_academic_year,
+                term=current_term,
+            ).first()
             grade, created = Grade.objects.update_or_create(
                 student=data['student'],
                 subject=data['subject'],
                 academic_year=current_academic_year,
                 term=current_term,
                 defaults={
-                    'homework': data.get('homework', 0),
-                    'class_work': data.get('class_work', 0),
-                    'project': data.get('project', 0),
-                    'first_test': data.get('first_test', 0),
-                    'midterm_test': data.get('midterm_test', 0),
-                    'exam': data.get('exam', 0),
-                    'remarks': data.get('remarks', ''),
+                    'homework': data['homework'] if data.get('homework') is not None else (existing_grade.homework if existing_grade else 0),
+                    'class_work': data['class_work'] if data.get('class_work') is not None else (existing_grade.class_work if existing_grade else 0),
+                    'project': data['project'] if data.get('project') is not None else (existing_grade.project if existing_grade else 0),
+                    'first_test': data['first_test'] if data.get('first_test') is not None else (existing_grade.first_test if existing_grade else 0),
+                    'midterm_test': data['midterm_test'] if data.get('midterm_test') is not None else (existing_grade.midterm_test if existing_grade else 0),
+                    'exam': data['exam'] if data.get('exam') is not None else (existing_grade.exam if existing_grade else 0),
+                    'remarks': data.get('remarks') if data.get('remarks') is not None else (existing_grade.remarks if existing_grade else ''),
                 }
             )
             # Log activity
@@ -611,7 +820,20 @@ def enter_academic_scores(request):
                 return redirect(f"{request.path}?student={selected_student.pk}")
             return redirect('enter_academic_scores')
     else:
-        form = GradeEntryForm()
+        existing_grade = None
+        if selected_student and selected_subject:
+            existing_grade = Grade.objects.filter(
+                student=selected_student,
+                subject=selected_subject,
+                academic_year=current_academic_year,
+                term=current_term,
+            ).first()
+
+        if existing_grade:
+            form = GradeEntryForm(instance=existing_grade)
+        else:
+            form = GradeEntryForm()
+
         if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
             form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
         if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
@@ -959,6 +1181,8 @@ def student_dashboard(request):
     student = None
     grades = []
     behavioral_grades = []
+    result_access_allowed = False
+    publication = None
     selected_academic_year = request.GET.get('academic_year')
     selected_term = request.GET.get('term')
     academic_year_options = []
@@ -970,16 +1194,24 @@ def student_dashboard(request):
             selected_academic_year,
             selected_term,
         )
-        grades = Grade.objects.filter(
-            student=student,
-            academic_year=selected_academic_year,
-            term=selected_term,
-        ).select_related('subject').order_by('subject__name')
-        behavioral_grades = BehavioralGrade.objects.filter(
-            student=student,
-            academic_year=selected_academic_year,
-            term=selected_term,
-        ).order_by('-term')
+        publication = _result_publication_for(student, selected_academic_year, selected_term)
+        result_access_allowed = _result_access_allowed(student, selected_academic_year, selected_term)
+        if result_access_allowed:
+            grades = Grade.objects.filter(
+                student=student,
+                academic_year=selected_academic_year,
+                term=selected_term,
+            ).select_related('subject').order_by('subject__name')
+            behavioral_grades = BehavioralGrade.objects.filter(
+                student=student,
+                academic_year=selected_academic_year,
+                term=selected_term,
+            ).order_by('-term')
+        else:
+            messages.info(
+                request,
+                'Results are currently locked. They will be available once outstanding fees are cleared and the school approves the result publication.',
+            )
     except Student.DoesNotExist:
         messages.info(request, 'No student profile was found for your username. Please contact administration.')
 
@@ -992,6 +1224,8 @@ def student_dashboard(request):
         'selected_term_display': _term_display(selected_term) if selected_term else '',
         'academic_year_options': academic_year_options,
         'term_options': term_options,
+        'result_access_allowed': result_access_allowed,
+        'publication': publication,
     })
 
 
@@ -1088,7 +1322,6 @@ def build_report_card(
     class_name,
     nationality,
     state_of_origin,
-    sport_house,
     club_society,
     academic_year,
     term_display,
@@ -1158,7 +1391,6 @@ def build_report_card(
         ('NAME', student_name),
         ('STUDENT ID', student_id),
         ('CLASS', class_name or '-'),
-        ('SPORT HOUSE', sport_house or '-'),
     ]
     rows_right = [
         ('NATIONALITY', nationality or 'Nigeria'),
@@ -1372,7 +1604,7 @@ def build_report_card(
     cv.drawCentredString(
         width / 2,
         y,
-        'This report is computer-generated and valid without a stamp. Corinasia International Academy, Abuja.',
+        'Official use requires the school stamp and authorised signature. This report is computer-generated for preview only.',
     )
 
     cv.showPage()
@@ -1393,6 +1625,9 @@ def report_card_pdf(request):
         request.GET.get('academic_year'),
         request.GET.get('term'),
     )
+    if not _result_access_allowed(student, selected_academic_year, selected_term):
+        messages.error(request, 'Results are not yet available. They become visible once fees are cleared and the school approves them.')
+        return redirect('student_dashboard')
     term_display = _term_display(selected_term)
 
     selected_grades = list(
@@ -1457,7 +1692,7 @@ def report_card_pdf(request):
         class_name=student.class_name or 'Not assigned',
         nationality=student.nationality,
         state_of_origin=student.state_of_origin or '',
-        sport_house=student.sport_house or '',
+        # sport_house removed from model
         club_society=student.club_and_society or '',
         academic_year=selected_academic_year,
         term_display=term_display,

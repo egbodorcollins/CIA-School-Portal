@@ -28,6 +28,7 @@ urlpatterns = [
     path('teacher/current-term/', views.set_current_term, name='set_current_term'),
     path('teacher/enter-scores/', views.enter_academic_scores, name='enter_academic_scores'),
     path('teacher/enter-behavior/', views.enter_behavioral_assessments, name='enter_behavioral_assessments'),
+    path('admin-staff/result-releases/', views.result_publications, name='result_publications'),
     path('teacher/manage-students/', views.manage_students, name='manage_students'),
     path('teacher/manage-students/promote-class/', views.promote_class, name='promote_class'),
     path('teacher/manage-students/promotions/<int:request_id>/approve/', views.approve_class_promotion, name='approve_class_promotion'),

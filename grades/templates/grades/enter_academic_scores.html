@@ -133,6 +133,7 @@
                                     <th>Total</th>
                                     <th>Letter</th>
                                     <th>Remarks</th>
+                                    <th>Edit</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -149,6 +150,7 @@
                                         <td>{{ grade.marks }}</td>
                                         <td>{{ grade.letter_grade }}</td>
                                         <td>{{ grade.remarks|default:'—' }}</td>
+                                        <td><a class="button button-small" href="{% url 'enter_academic_scores' %}?student={{ grade.student.pk }}&subject={{ grade.subject.pk }}">Edit</a></td>
                                     </tr>
                                 {% endfor %}
                             </tbody>

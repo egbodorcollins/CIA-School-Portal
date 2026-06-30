@@ -2,8 +2,9 @@ from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as DefaultUserAdmin
 from django.contrib.auth.models import User
 from django import forms
+from django.utils import timezone
 from .forms import CLASS_CHOICES
-from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile, ClassPromotionRequest
+from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile, ClassPromotionRequest, ResultPublication
 
 admin.site.index_template = 'admin/portal_index.html'
 
@@ -11,7 +12,7 @@ admin.site.index_template = 'admin/portal_index.html'
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
     list_display = ['student_id', 'first_name', 'other_names', 'last_name', 'class_name', 'nationality', 'state_of_origin', 'enrollment_date']
-    list_filter = ['enrollment_date', 'nationality', 'state_of_origin', 'sport_house', 'class_name']
+    list_filter = ['enrollment_date', 'nationality', 'state_of_origin', 'class_name']
     search_fields = ['student_id', 'first_name', 'other_names', 'last_name', 'state_of_origin', 'class_name']
     readonly_fields = ['enrollment_date']
     fieldsets = (
@@ -19,7 +20,7 @@ class StudentAdmin(admin.ModelAdmin):
             'fields': ('student_id', 'first_name', 'other_names', 'last_name', 'class_name', 'nationality', 'state_of_origin')
         }),
         ('School Activities', {
-            'fields': ('club_and_society', 'sport_house', 'subjects'),
+            'fields': ('club_and_society', 'subjects'),
             'classes': ('collapse',)
         }),
         ('Additional Info', {
@@ -91,6 +92,36 @@ class ProfileAdmin(admin.ModelAdmin):
     list_filter = ['role', 'assigned_class']
     search_fields = ['user__username', 'user__first_name', 'user__last_name']
     filter_horizontal = ('assigned_subjects',)
+
+
+@admin.register(ResultPublication)
+class ResultPublicationAdmin(admin.ModelAdmin):
+    list_display = ['student', 'academic_year', 'term', 'is_fee_cleared', 'is_results_approved', 'approved_by', 'approved_at']
+    list_filter = ['academic_year', 'term', 'is_fee_cleared', 'is_results_approved']
+    search_fields = ['student__first_name', 'student__last_name', 'student__student_id']
+    autocomplete_fields = ['student', 'approved_by']
+    readonly_fields = ['created_at', 'updated_at']
+    fieldsets = (
+        ('Student & Term', {
+            'fields': ('student', 'academic_year', 'term')
+        }),
+        ('Release Controls', {
+            'fields': ('is_fee_cleared', 'is_results_approved', 'approved_by', 'approved_at')
+        }),
+        ('Audit', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+    def save_model(self, request, obj, form, change):
+        if obj.is_results_approved and not obj.approved_by:
+            obj.approved_by = request.user
+        if obj.is_results_approved and not obj.approved_at:
+            obj.approved_at = timezone.now()
+        if not obj.is_results_approved:
+            obj.approved_by = None
+            obj.approved_at = None
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(ClassPromotionRequest)

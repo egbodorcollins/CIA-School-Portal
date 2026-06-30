@@ -14,6 +14,9 @@
                 <a class="button button-secondary" href="{% url 'class_analytics' %}">Class Analytics</a>
                 <a class="button button-secondary" href="{% url 'enter_behavioral_assessments' %}">Enter Behavioral Assessments</a>
                 <a class="button button-secondary" href="{% url 'manage_students' %}">Manage Students</a>
+                {% if can_manage_result_publications %}
+                    <a class="button button-primary" href="{% url 'result_publications' %}">Result Releases</a>
+                {% endif %}
                 {% if can_request_promotion %}
                     <a class="button button-primary" href="{% url 'manage_students' %}#end-of-year-promotion">Request Promotion</a>
                 {% endif %}

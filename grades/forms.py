@@ -1,6 +1,7 @@
 from django import forms
 from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
+from django.db.models import Q
 from django.utils import timezone
 from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile
 from .subject_map import STANDARD_SUBJECTS
@@ -71,6 +72,25 @@ def normalize_class_name(class_name):
 
 def get_class_code(class_name):
     return CLASS_CODE_MAP.get(normalize_class_name(class_name))
+
+
+def normalize_name(value):
+    if value is None:
+        return ''
+
+    normalized_parts = []
+    for part in str(value).strip().split():
+        if "'" in part:
+            segments = part.split("'")
+            part = "'".join(segment[:1].upper() + segment[1:].lower() for segment in segments)
+        elif "-" in part:
+            segments = part.split("-")
+            part = "-".join(segment[:1].upper() + segment[1:].lower() for segment in segments)
+        else:
+            part = part[:1].upper() + part[1:].lower()
+        normalized_parts.append(part)
+
+    return ' '.join(normalized_parts)
 
 
 def generate_student_id(class_name):
@@ -155,6 +175,34 @@ class StudentSignUpForm(forms.Form):
             raise ValidationError('Please choose a supported class name.')
         return class_name
 
+    def clean_first_name(self):
+        return normalize_name(self.cleaned_data.get('first_name', ''))
+
+    def clean_other_names(self):
+        return normalize_name(self.cleaned_data.get('other_names', ''))
+
+    def clean_last_name(self):
+        return normalize_name(self.cleaned_data.get('last_name', ''))
+
+    def clean(self):
+        cleaned_data = super().clean()
+        first_name = cleaned_data.get('first_name', '')
+        other_names = cleaned_data.get('other_names', '')
+        last_name = cleaned_data.get('last_name', '')
+        class_name = cleaned_data.get('class_name', '')
+
+        if first_name and last_name and class_name:
+            duplicate_query = Student.objects.filter(class_name=class_name, first_name__iexact=first_name, last_name__iexact=last_name)
+            if other_names:
+                duplicate_query = duplicate_query.filter(other_names__iexact=other_names)
+            else:
+                duplicate_query = duplicate_query.filter(Q(other_names__isnull=True) | Q(other_names=''))
+
+            if duplicate_query.exists():
+                raise ValidationError('A student with this name already exists in the selected class. Please review the existing record before registering again.')
+
+        return cleaned_data
+
     def clean_date_of_birth(self):
         date_of_birth = self.cleaned_data.get('date_of_birth')
         if date_of_birth and date_of_birth > timezone.now().date():
@@ -211,6 +259,11 @@ class GradeEntryForm(forms.ModelForm):
         widgets = {
             'remarks': forms.Textarea(attrs={'rows': 3}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in ['homework', 'class_work', 'project', 'first_test', 'midterm_test', 'exam']:
+            self.fields[field_name].required = False
 
     def clean(self):
         cleaned = super().clean()
