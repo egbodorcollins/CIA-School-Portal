@@ -51,7 +51,6 @@ class Student(models.Model):
     nationality = models.CharField(max_length=50, default='Nigeria')
     state_of_origin = models.CharField(max_length=50, blank=True, null=True)
     club_and_society = models.CharField(max_length=100, blank=True, null=True)
-    sport_house = models.CharField(max_length=50, blank=True, null=True)
     date_of_birth = models.DateField(blank=True, null=True)
     enrollment_date = models.DateField(default=datetime.today)
     subjects = models.ManyToManyField('Subject', blank=True, related_name='students', help_text='Subjects the student is enrolled in for the current term')

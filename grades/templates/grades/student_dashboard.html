@@ -10,7 +10,6 @@
                 <p><strong>Class:</strong> {{ student.class_name|default:'Not assigned' }}</p>
                 <p><strong>Nationality:</strong> {{ student.nationality }}</p>
                 <p><strong>State of Origin:</strong> {{ student.state_of_origin|default:'Not provided' }}</p>
-                <p><strong>Sport House:</strong> {{ student.sport_house|default:'Not provided' }}</p>
                 <p><strong>Club & Society:</strong> {{ student.club_and_society|default:'Not provided' }}</p>
                 {% if result_access_allowed %}
                     <form method="get" class="student-select-form" style="margin-top: 16px;">

@@ -779,19 +779,25 @@ def enter_academic_scores(request):
 
         if form.is_valid():
             data = form.cleaned_data
+            existing_grade = Grade.objects.filter(
+                student=data['student'],
+                subject=data['subject'],
+                academic_year=current_academic_year,
+                term=current_term,
+            ).first()
             grade, created = Grade.objects.update_or_create(
                 student=data['student'],
                 subject=data['subject'],
                 academic_year=current_academic_year,
                 term=current_term,
                 defaults={
-                    'homework': data.get('homework', 0),
-                    'class_work': data.get('class_work', 0),
-                    'project': data.get('project', 0),
-                    'first_test': data.get('first_test', 0),
-                    'midterm_test': data.get('midterm_test', 0),
-                    'exam': data.get('exam', 0),
-                    'remarks': data.get('remarks', ''),
+                    'homework': data['homework'] if data.get('homework') is not None else (existing_grade.homework if existing_grade else 0),
+                    'class_work': data['class_work'] if data.get('class_work') is not None else (existing_grade.class_work if existing_grade else 0),
+                    'project': data['project'] if data.get('project') is not None else (existing_grade.project if existing_grade else 0),
+                    'first_test': data['first_test'] if data.get('first_test') is not None else (existing_grade.first_test if existing_grade else 0),
+                    'midterm_test': data['midterm_test'] if data.get('midterm_test') is not None else (existing_grade.midterm_test if existing_grade else 0),
+                    'exam': data['exam'] if data.get('exam') is not None else (existing_grade.exam if existing_grade else 0),
+                    'remarks': data.get('remarks') if data.get('remarks') is not None else (existing_grade.remarks if existing_grade else ''),
                 }
             )
             # Log activity
@@ -814,7 +820,20 @@ def enter_academic_scores(request):
                 return redirect(f"{request.path}?student={selected_student.pk}")
             return redirect('enter_academic_scores')
     else:
-        form = GradeEntryForm()
+        existing_grade = None
+        if selected_student and selected_subject:
+            existing_grade = Grade.objects.filter(
+                student=selected_student,
+                subject=selected_subject,
+                academic_year=current_academic_year,
+                term=current_term,
+            ).first()
+
+        if existing_grade:
+            form = GradeEntryForm(instance=existing_grade)
+        else:
+            form = GradeEntryForm()
+
         if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
             form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
         if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
@@ -1303,7 +1322,6 @@ def build_report_card(
     class_name,
     nationality,
     state_of_origin,
-    sport_house,
     club_society,
     academic_year,
     term_display,
@@ -1373,7 +1391,6 @@ def build_report_card(
         ('NAME', student_name),
         ('STUDENT ID', student_id),
         ('CLASS', class_name or '-'),
-        ('SPORT HOUSE', sport_house or '-'),
     ]
     rows_right = [
         ('NATIONALITY', nationality or 'Nigeria'),
@@ -1675,7 +1692,7 @@ def report_card_pdf(request):
         class_name=student.class_name or 'Not assigned',
         nationality=student.nationality,
         state_of_origin=student.state_of_origin or '',
-        sport_house=student.sport_house or '',
+        # sport_house removed from model
         club_society=student.club_and_society or '',
         academic_year=selected_academic_year,
         term_display=term_display,

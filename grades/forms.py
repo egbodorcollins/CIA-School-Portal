@@ -260,6 +260,11 @@ class GradeEntryForm(forms.ModelForm):
             'remarks': forms.Textarea(attrs={'rows': 3}),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        for field_name in ['homework', 'class_work', 'project', 'first_test', 'midterm_test', 'exam']:
+            self.fields[field_name].required = False
+
     def clean(self):
         cleaned = super().clean()
         hw = cleaned.get('homework') or 0

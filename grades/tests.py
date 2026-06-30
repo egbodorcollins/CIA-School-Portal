@@ -433,6 +433,51 @@ class PortalRenderingTests(TestCase):
         self.assertNotContains(response, 'Ben Stone')
         self.assertNotContains(response, 'English Studies')
 
+    def test_subject_teacher_can_update_single_score_without_overwriting_other_components(self):
+        TermSetting.objects.create(current_term='first_term')
+        math = Subject.objects.create(code='MAT B51', name='Mathematics')
+        ada = Student.objects.create(student_id='CIA/B52026/0001', first_name='Ada', last_name='King', class_name='Basic 5')
+        ada.subjects.add(math)
+        Grade.objects.create(
+            student=ada,
+            subject=math,
+            academic_year='2025/2026',
+            term='first_term',
+            homework=5,
+            class_work=10,
+            project=5,
+            first_test=10,
+            midterm_test=10,
+            exam=55,
+        )
+        subject_teacher = User.objects.create_user(username='mathteacher', password='pass12345')
+        subject_teacher.profile.role = Profile.ROLE_SUBJECT_TEACHER
+        subject_teacher.profile.save()
+        subject_teacher.profile.assigned_subjects.add(math)
+        self.client.login(username='mathteacher', password='pass12345')
+
+        response = self.client.post(reverse('enter_academic_scores'), {
+            'student': ada.pk,
+            'subject': math.pk,
+            'exam': '59',
+            'homework': '',
+            'class_work': '',
+            'project': '',
+            'first_test': '',
+            'midterm_test': '',
+            'remarks': '',
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        grade = Grade.objects.get(student=ada, subject=math, academic_year='2025/2026', term='first_term')
+        self.assertEqual(grade.homework, 5)
+        self.assertEqual(grade.class_work, 10)
+        self.assertEqual(grade.project, 5)
+        self.assertEqual(grade.first_test, 10)
+        self.assertEqual(grade.midterm_test, 10)
+        self.assertEqual(grade.exam, 59)
+        self.assertEqual(grade.marks, 99)
+
     def test_subject_teacher_analytics_uses_subject_scope(self):
         TermSetting.objects.create(current_term='first_term')
         math = Subject.objects.create(code='MAT B51', name='Mathematics')

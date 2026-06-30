@@ -12,7 +12,7 @@ admin.site.index_template = 'admin/portal_index.html'
 @admin.register(Student)
 class StudentAdmin(admin.ModelAdmin):
     list_display = ['student_id', 'first_name', 'other_names', 'last_name', 'class_name', 'nationality', 'state_of_origin', 'enrollment_date']
-    list_filter = ['enrollment_date', 'nationality', 'state_of_origin', 'sport_house', 'class_name']
+    list_filter = ['enrollment_date', 'nationality', 'state_of_origin', 'class_name']
     search_fields = ['student_id', 'first_name', 'other_names', 'last_name', 'state_of_origin', 'class_name']
     readonly_fields = ['enrollment_date']
     fieldsets = (
@@ -20,7 +20,7 @@ class StudentAdmin(admin.ModelAdmin):
             'fields': ('student_id', 'first_name', 'other_names', 'last_name', 'class_name', 'nationality', 'state_of_origin')
         }),
         ('School Activities', {
-            'fields': ('club_and_society', 'sport_house', 'subjects'),
+            'fields': ('club_and_society', 'subjects'),
             'classes': ('collapse',)
         }),
         ('Additional Info', {
