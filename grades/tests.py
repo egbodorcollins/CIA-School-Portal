@@ -478,6 +478,41 @@ class PortalRenderingTests(TestCase):
         self.assertEqual(grade.exam, 59)
         self.assertEqual(grade.marks, 99)
 
+    def test_class_teacher_edit_score_form_loads_existing_components(self):
+        TermSetting.objects.create(current_academic_year='2025/2026', current_term='first_term')
+        math = Subject.objects.create(code='MAT B51', name='Mathematics')
+        ada = Student.objects.create(student_id='CIA/B52026/0001', first_name='Ada', last_name='King', class_name='Basic 5')
+        ada.subjects.add(math)
+        Grade.objects.create(
+            student=ada,
+            subject=math,
+            academic_year='2025/2026',
+            term='first_term',
+            homework=5,
+            class_work=10,
+            project=5,
+            first_test=8,
+            midterm_test=9,
+            exam=50,
+        )
+        class_teacher = User.objects.create_user(username='basic5teacher', password='pass12345')
+        class_teacher.profile.role = Profile.ROLE_CLASS_TEACHER
+        class_teacher.profile.assigned_class = 'Basic 5'
+        class_teacher.profile.save()
+        self.client.login(username='basic5teacher', password='pass12345')
+
+        response = self.client.get(reverse('enter_academic_scores'), {
+            'student': ada.pk,
+            'subject': math.pk,
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'value="5.0"')
+        self.assertContains(response, 'value="10.0"')
+        self.assertContains(response, 'value="8.0"')
+        self.assertContains(response, 'value="9.0"')
+        self.assertContains(response, 'value="50.0"')
+
     def test_subject_teacher_analytics_uses_subject_scope(self):
         TermSetting.objects.create(current_term='first_term')
         math = Subject.objects.create(code='MAT B51', name='Mathematics')

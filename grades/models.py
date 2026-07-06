@@ -286,6 +286,9 @@ class Grade(models.Model):
         else:
             self.letter_grade = 'F'
 
+        if kwargs.get('update_fields') is not None:
+            kwargs['update_fields'] = set(kwargs['update_fields']) | {'marks', 'letter_grade'}
+
         super().save(*args, **kwargs)
 
 

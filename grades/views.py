@@ -742,6 +742,8 @@ def enter_academic_scores(request):
         selected_subject = assigned_subjects.filter(pk=subject_pk).first()
     if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER and not selected_subject:
         selected_subject = assigned_subjects.first()
+    if profile and profile.role in [Profile.ROLE_ADMIN, Profile.ROLE_CLASS_TEACHER] and subject_pk:
+        selected_subject = Subject.objects.filter(pk=subject_pk).first()
 
     # Prepare students available for selection based on user's role
     if profile and profile.role == Profile.ROLE_ADMIN:
@@ -754,7 +756,7 @@ def enter_academic_scores(request):
         students_for_select = Student.objects.none()
 
     selected_student = None
-    sel_student_pk = request.GET.get('student')
+    sel_student_pk = request.GET.get('student') or request.POST.get('student')
     if sel_student_pk:
         try:
             selected_student = students_for_select.get(pk=sel_student_pk)
@@ -776,6 +778,18 @@ def enter_academic_scores(request):
         # If a student was pre-selected, lock the student field
         if selected_student:
             form.fields['student'].queryset = Student.objects.filter(pk=selected_student.pk)
+
+        submitted_student = form.fields['student'].queryset.filter(pk=request.POST.get('student')).first()
+        submitted_subject = form.fields['subject'].queryset.filter(pk=request.POST.get('subject')).first()
+        if submitted_student and submitted_subject:
+            existing_grade = Grade.objects.filter(
+                student=submitted_student,
+                subject=submitted_subject,
+                academic_year=current_academic_year,
+                term=current_term,
+            ).first()
+            if existing_grade:
+                form.instance = existing_grade
 
         if form.is_valid():
             data = form.cleaned_data
