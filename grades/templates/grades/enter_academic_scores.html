@@ -43,6 +43,26 @@
                 {% endif %}
             </div>
 
+            {% if selected_student %}
+            <div style="margin-bottom:12px">
+                {% if subject_options %}
+                    <form method="get" class="subject-select-form">
+                        <input type="hidden" name="student" value="{{ selected_student.pk }}">
+                        <label for="student-subject-select">Select Subject</label>
+                        <select id="student-subject-select" name="subject" onchange="this.form.submit()">
+                            <option value="">-- Select subject --</option>
+                            {% for subject in subject_options %}
+                                <option value="{{ subject.pk }}" {% if selected_subject and subject.pk == selected_subject.pk %}selected{% endif %}>{{ subject.name }} ({{ subject.code }})</option>
+                            {% endfor %}
+                        </select>
+                        <noscript><button type="submit" class="button">Select</button></noscript>
+                    </form>
+                {% else %}
+                    <p class="empty-state">No subjects are available for this student in the active term.</p>
+                {% endif %}
+            </div>
+            {% endif %}
+
             <form method="post" novalidate>
                 {% csrf_token %}
                 {{ form.non_field_errors }}
@@ -61,7 +81,7 @@
                     </div>
                 </div>
                 {% endif %}
-                {% if is_subject_teacher and selected_subject %}
+                {% if selected_subject %}
                     {{ form.subject }}
                     <div class="field-row">
                         <label>Selected Subject</label>

@@ -349,6 +349,97 @@ class PortalRenderingTests(TestCase):
         self.assertContains(response, 'Class Teacher Comment')
         self.assertNotContains(response, 'behavioral_score')
 
+    def test_behavioral_edit_form_loads_existing_values(self):
+        TermSetting.objects.create(current_academic_year='2025/2026', current_term='first_term')
+        teacher = User.objects.create_user(username='basic5teacher', password='pass12345')
+        teacher.profile.role = Profile.ROLE_CLASS_TEACHER
+        teacher.profile.assigned_class = 'Basic 5'
+        teacher.profile.save()
+        student = Student.objects.create(
+            student_id='CIA/B52026/0001',
+            first_name='Ada',
+            last_name='King',
+            class_name='Basic 5',
+        )
+        BehavioralGrade.objects.create(
+            student=student,
+            academic_year='2025/2026',
+            term='first_term',
+            punctuality='A',
+            relationship_with_staff='B',
+            politeness='A',
+            neatness='B',
+            co_operation='A',
+            obedience='B',
+            attentiveness='A',
+            adjustment_in_school='B',
+            relationship_with_peers='A',
+            times_present=42,
+            remarks='Strong participation.',
+        )
+        self.client.login(username='basic5teacher', password='pass12345')
+
+        response = self.client.get(reverse('enter_behavioral_assessments'), {'student': student.pk})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['form'].instance.student, student)
+        self.assertContains(response, 'value="42"')
+        self.assertContains(response, 'Strong participation.')
+        self.assertContains(response, 'Selected Student')
+
+    def test_behavioral_update_edits_existing_record(self):
+        TermSetting.objects.create(current_academic_year='2025/2026', current_term='first_term')
+        teacher = User.objects.create_user(username='basic5teacher', password='pass12345')
+        teacher.profile.role = Profile.ROLE_CLASS_TEACHER
+        teacher.profile.assigned_class = 'Basic 5'
+        teacher.profile.save()
+        student = Student.objects.create(
+            student_id='CIA/B52026/0001',
+            first_name='Ada',
+            last_name='King',
+            class_name='Basic 5',
+        )
+        BehavioralGrade.objects.create(
+            student=student,
+            academic_year='2025/2026',
+            term='first_term',
+            punctuality='A',
+            relationship_with_staff='B',
+            politeness='A',
+            neatness='B',
+            co_operation='A',
+            obedience='B',
+            attentiveness='A',
+            adjustment_in_school='B',
+            relationship_with_peers='A',
+            times_present=42,
+            remarks='Strong participation.',
+        )
+        self.client.login(username='basic5teacher', password='pass12345')
+
+        response = self.client.post(reverse('enter_behavioral_assessments'), {
+            'student': student.pk,
+            'punctuality': 'A',
+            'relationship_with_staff': 'B',
+            'politeness': 'A',
+            'neatness': 'B',
+            'co_operation': 'A',
+            'obedience': 'B',
+            'attentiveness': 'A',
+            'adjustment_in_school': 'B',
+            'relationship_with_peers': 'A',
+            'times_present': 47,
+            'remarks': 'Updated attendance only.',
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(BehavioralGrade.objects.filter(student=student, academic_year='2025/2026', term='first_term').count(), 1)
+        report = BehavioralGrade.objects.get(student=student, academic_year='2025/2026', term='first_term')
+        self.assertEqual(report.punctuality, 'A')
+        self.assertEqual(report.relationship_with_staff, 'B')
+        self.assertEqual(report.times_present, 47)
+        self.assertEqual(report.remarks, 'Updated attendance only.')
+
     def test_head_teacher_comment_is_based_on_average_grade(self):
         self.assertEqual(_head_teacher_comment(95), 'Excellent result. Keep up the outstanding performance.')
         self.assertEqual(_head_teacher_comment(85), 'Very good result. Keep working hard for excellence.')

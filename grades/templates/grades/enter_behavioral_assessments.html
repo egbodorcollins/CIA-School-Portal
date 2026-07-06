@@ -5,14 +5,40 @@
         <h2>Enter Behavioral Assessments</h2>
         <p>Record student behavioral scores and class teacher comments for {{ current_academic_year }} {{ current_term_display }}.</p>
         <div class="teacher-form-card">
+            <div style="margin-bottom:12px">
+                {% if students %}
+                    <form method="get" class="student-select-form">
+                        <label for="student-select">Select Student</label>
+                        <select id="student-select" name="student" onchange="this.form.submit()">
+                            <option value="">-- Select student --</option>
+                            {% for s in students %}
+                                <option value="{{ s.pk }}" {% if selected_student and s.pk == selected_student.pk %}selected{% endif %}>{{ s.full_name }} ({{ s.student_id }})</option>
+                            {% endfor %}
+                        </select>
+                        <noscript><button type="submit" class="button">Select</button></noscript>
+                    </form>
+                {% else %}
+                    <p class="empty-state">No students available for selection.</p>
+                {% endif %}
+            </div>
             <form method="post" novalidate>
                 {% csrf_token %}
                 {{ form.non_field_errors }}
+                {% if selected_student %}
+                {{ form.student }}
+                <div class="field-row">
+                    <label>Selected Student</label>
+                    <div>{{ selected_student.full_name }} ({{ selected_student.student_id }})
+                        <a href="{% url 'enter_behavioral_assessments' %}" class="button" style="margin-left:8px;">Change</a>
+                    </div>
+                </div>
+                {% else %}
                 <div class="field-row">
                     {{ form.student.label_tag }}
                     {{ form.student }}
                     {% for error in form.student.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
                 </div>
+                {% endif %}
                 <div class="field-row">
                     <label>Academic Period</label>
                     <div>{{ current_academic_year }} {{ current_term_display }}</div>
@@ -80,7 +106,7 @@
             {% if reports %}
                 <table>
                     <thead>
-                        <tr><th>Student</th><th>Times Present</th><th>Class Teacher Comment</th><th>Recorded</th></tr>
+                        <tr><th>Student</th><th>Times Present</th><th>Class Teacher Comment</th><th>Recorded</th><th>Edit</th></tr>
                     </thead>
                     <tbody>
                         {% for record in reports %}
@@ -89,6 +115,7 @@
                                 <td>{{ record.times_present }}</td>
                                 <td>{{ record.remarks|default:'—' }}</td>
                                 <td>{{ record.date_recorded|date:'M j, Y' }}</td>
+                                <td><a class="button button-small" href="{% url 'enter_behavioral_assessments' %}?student={{ record.student.pk }}">Edit</a></td>
                             </tr>
                         {% endfor %}
                     </tbody>
