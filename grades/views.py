@@ -736,12 +736,10 @@ def enter_academic_scores(request):
     current_academic_year, current_term = _current_period()
     profile = getattr(request.user, 'profile', None)
     assigned_subjects = _subject_teacher_subjects(profile)
-    selected_subject = None
     subject_pk = request.GET.get('subject') or request.POST.get('subject')
-    if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER and subject_pk:
-        selected_subject = assigned_subjects.filter(pk=subject_pk).first()
-    if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER and not selected_subject:
-        selected_subject = assigned_subjects.first()
+    selected_subject = None
+    if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+        selected_subject = assigned_subjects.filter(pk=subject_pk).first() if subject_pk else assigned_subjects.first()
 
     # Prepare students available for selection based on user's role
     if profile and profile.role == Profile.ROLE_ADMIN:
@@ -754,15 +752,49 @@ def enter_academic_scores(request):
         students_for_select = Student.objects.none()
 
     selected_student = None
-    sel_student_pk = request.GET.get('student')
+    sel_student_pk = request.GET.get('student') or request.POST.get('student')
     if sel_student_pk:
         try:
             selected_student = students_for_select.get(pk=sel_student_pk)
         except Exception:
             selected_student = None
 
+    subject_options = Subject.objects.none()
+
+    if selected_student:
+        try:
+            term_map = {'first_term': '1', 'second_term': '2', 'third_term': '3'}
+            term_digit = term_map.get(current_term, '1')
+            class_code = get_class_code(selected_student.class_name)
+            if class_code:
+                subject_options = selected_student.subjects.filter(code__endswith=f"{class_code}{term_digit}")
+            else:
+                subject_options = selected_student.subjects.all()
+        except Exception:
+            subject_options = selected_student.subjects.all()
+
+        if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+            subject_options = subject_options.filter(pk__in=assigned_subjects)
+
+        if subject_pk:
+            selected_subject = subject_options.filter(pk=subject_pk).first()
+        elif profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+            selected_subject = subject_options.filter(pk=selected_subject.pk).first() if selected_subject else subject_options.first()
+    elif profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
+        subject_options = assigned_subjects
+        selected_subject = assigned_subjects.filter(pk=subject_pk).first() if subject_pk else assigned_subjects.first()
+
+    existing_grade = None
+    if selected_student and selected_subject:
+        existing_grade = Grade.objects.filter(
+            student=selected_student,
+            subject=selected_subject,
+            academic_year=current_academic_year,
+            term=current_term,
+        ).first()
+
     if request.method == 'POST':
-        form = GradeEntryForm(request.POST)
+        form = GradeEntryForm(request.POST, instance=existing_grade)
 
         # Restrict student/subject querysets based on role
         if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
@@ -776,28 +808,30 @@ def enter_academic_scores(request):
         # If a student was pre-selected, lock the student field
         if selected_student:
             form.fields['student'].queryset = Student.objects.filter(pk=selected_student.pk)
+            form.fields['student'].initial = selected_student.pk
+            form.fields['student'].widget = HiddenInput()
+            form.fields['subject'].queryset = subject_options
+
+        if selected_subject:
+            form.fields['subject'].queryset = Subject.objects.filter(pk=selected_subject.pk)
+            form.fields['subject'].initial = selected_subject.pk
+            form.fields['subject'].widget = HiddenInput()
 
         if form.is_valid():
             data = form.cleaned_data
-            existing_grade = Grade.objects.filter(
-                student=data['student'],
-                subject=data['subject'],
-                academic_year=current_academic_year,
-                term=current_term,
-            ).first()
             grade, created = Grade.objects.update_or_create(
                 student=data['student'],
                 subject=data['subject'],
                 academic_year=current_academic_year,
                 term=current_term,
                 defaults={
-                    'homework': data['homework'] if data.get('homework') is not None else (existing_grade.homework if existing_grade else 0),
-                    'class_work': data['class_work'] if data.get('class_work') is not None else (existing_grade.class_work if existing_grade else 0),
-                    'project': data['project'] if data.get('project') is not None else (existing_grade.project if existing_grade else 0),
-                    'first_test': data['first_test'] if data.get('first_test') is not None else (existing_grade.first_test if existing_grade else 0),
-                    'midterm_test': data['midterm_test'] if data.get('midterm_test') is not None else (existing_grade.midterm_test if existing_grade else 0),
-                    'exam': data['exam'] if data.get('exam') is not None else (existing_grade.exam if existing_grade else 0),
-                    'remarks': data.get('remarks') if data.get('remarks') is not None else (existing_grade.remarks if existing_grade else ''),
+                    'homework': data['homework'],
+                    'class_work': data['class_work'],
+                    'project': data['project'],
+                    'first_test': data['first_test'],
+                    'midterm_test': data['midterm_test'],
+                    'exam': data['exam'],
+                    'remarks': data.get('remarks') or '',
                 }
             )
             # Log activity
@@ -820,19 +854,13 @@ def enter_academic_scores(request):
                 return redirect(f"{request.path}?student={selected_student.pk}")
             return redirect('enter_academic_scores')
     else:
-        existing_grade = None
-        if selected_student and selected_subject:
-            existing_grade = Grade.objects.filter(
-                student=selected_student,
-                subject=selected_subject,
-                academic_year=current_academic_year,
-                term=current_term,
-            ).first()
-
         if existing_grade:
             form = GradeEntryForm(instance=existing_grade)
         else:
-            form = GradeEntryForm()
+            form = GradeEntryForm(initial={
+                'student': selected_student,
+                'subject': selected_subject,
+            })
 
         if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
             form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
@@ -849,25 +877,11 @@ def enter_academic_scores(request):
             form.fields['student'].queryset = Student.objects.filter(pk=selected_student.pk)
             form.fields['student'].initial = selected_student.pk
             form.fields['student'].widget = HiddenInput()
-
-            # Restrict subjects to the student's enrolled subjects for the current term
-            try:
-                term_map = {'first_term': '1', 'second_term': '2', 'third_term': '3'}
-                term_digit = term_map.get(current_term, '1')
-                class_code = get_class_code(selected_student.class_name)
-                if class_code:
-                    subj_qs = selected_student.subjects.filter(code__endswith=f"{class_code}{term_digit}")
-                else:
-                    subj_qs = selected_student.subjects.all()
-
-                if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
-                    subj_qs = subj_qs.filter(pk__in=assigned_subjects)
-                    if selected_subject:
-                        subj_qs = subj_qs.filter(pk=selected_subject.pk)
-
-                form.fields['subject'].queryset = subj_qs
-            except Exception:
-                form.fields['subject'].queryset = selected_student.subjects.all()
+            form.fields['subject'].queryset = subject_options
+            if selected_subject:
+                form.fields['subject'].queryset = Subject.objects.filter(pk=selected_subject.pk)
+                form.fields['subject'].initial = selected_subject.pk
+                form.fields['subject'].widget = HiddenInput()
 
     # Show only selected student's grades when a student is selected
     if selected_student:
@@ -895,6 +909,7 @@ def enter_academic_scores(request):
         'selected_student': selected_student,
         'assigned_subjects': assigned_subjects,
         'selected_subject': selected_subject,
+        'subject_options': subject_options,
         'is_subject_teacher': profile and profile.role == Profile.ROLE_SUBJECT_TEACHER,
     })
 
@@ -905,10 +920,38 @@ def enter_behavioral_assessments(request):
     current_academic_year, current_term = _current_period()
     profile = getattr(request.user, 'profile', None)
 
+    if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
+        students_for_select = Student.objects.filter(class_name=profile.assigned_class).order_by('last_name')
+    else:
+        students_for_select = Student.objects.all().order_by('last_name')
+
+    selected_student = None
+    sel_student_pk = request.GET.get('student') or request.POST.get('student')
+    if sel_student_pk:
+        try:
+            selected_student = students_for_select.get(pk=sel_student_pk)
+        except Exception:
+            selected_student = None
+
     if request.method == 'POST':
         form = BehavioralGradeEntryForm(request.POST)
         if profile and profile.role == 'class_teacher' and profile.assigned_class:
-            form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
+            form.fields['student'].queryset = students_for_select
+
+        if selected_student:
+            form.fields['student'].queryset = Student.objects.filter(pk=selected_student.pk)
+            form.fields['student'].initial = selected_student.pk
+            form.fields['student'].widget = HiddenInput()
+
+        submitted_student = form.fields['student'].queryset.filter(pk=request.POST.get('student')).first()
+        if submitted_student:
+            existing_report = BehavioralGrade.objects.filter(
+                student=submitted_student,
+                academic_year=current_academic_year,
+                term=current_term,
+            ).first()
+            if existing_report:
+                form.instance = existing_report
 
         if form.is_valid():
             data = form.cleaned_data
@@ -940,11 +983,30 @@ def enter_behavioral_assessments(request):
             except Exception:
                 pass
             messages.success(request, 'Behavioral assessment saved successfully.')
+            if selected_student:
+                return redirect(f"{request.path}?student={selected_student.pk}")
             return redirect('enter_behavioral_assessments')
     else:
-        form = BehavioralGradeEntryForm()
+        existing_report = None
+        if selected_student:
+            existing_report = BehavioralGrade.objects.filter(
+                student=selected_student,
+                academic_year=current_academic_year,
+                term=current_term,
+            ).first()
+
+        if existing_report:
+            form = BehavioralGradeEntryForm(instance=existing_report)
+        else:
+            form = BehavioralGradeEntryForm()
+
         if profile and profile.role == 'class_teacher' and profile.assigned_class:
-            form.fields['student'].queryset = Student.objects.filter(class_name=profile.assigned_class)
+            form.fields['student'].queryset = students_for_select
+
+        if selected_student:
+            form.fields['student'].queryset = Student.objects.filter(pk=selected_student.pk)
+            form.fields['student'].initial = selected_student.pk
+            form.fields['student'].widget = HiddenInput()
 
     reports = BehavioralGrade.objects.filter(academic_year=current_academic_year, term=current_term).select_related('student').order_by('student__last_name')
     if profile and profile.role == 'class_teacher' and profile.assigned_class:
@@ -956,6 +1018,8 @@ def enter_behavioral_assessments(request):
         'current_term': current_term,
         'current_academic_year': current_academic_year,
         'current_term_display': _term_display(current_term),
+        'students': students_for_select,
+        'selected_student': selected_student,
     })
 
 

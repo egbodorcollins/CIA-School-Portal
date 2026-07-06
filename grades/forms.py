@@ -249,6 +249,8 @@ class StudentSignUpForm(forms.Form):
 
 
 class GradeEntryForm(forms.ModelForm):
+    COMPONENT_FIELDS = ['homework', 'class_work', 'project', 'first_test', 'midterm_test', 'exam']
+
     class Meta:
         model = Grade
         fields = [
@@ -262,19 +264,18 @@ class GradeEntryForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        for field_name in ['homework', 'class_work', 'project', 'first_test', 'midterm_test', 'exam']:
+        for field_name in self.COMPONENT_FIELDS:
             self.fields[field_name].required = False
 
     def clean(self):
         cleaned = super().clean()
-        hw = cleaned.get('homework') or 0
-        cw = cleaned.get('class_work') or 0
-        proj = cleaned.get('project') or 0
-        t1 = cleaned.get('first_test') or 0
-        mid = cleaned.get('midterm_test') or 0
-        exam = cleaned.get('exam') or 0
 
-        total = hw + cw + proj + t1 + mid + exam
+        for field_name in self.COMPONENT_FIELDS:
+            if cleaned.get(field_name) is None:
+                existing_value = getattr(self.instance, field_name, None) if self.instance and self.instance.pk else None
+                cleaned[field_name] = existing_value if existing_value is not None else 0
+
+        total = sum(cleaned.get(field_name) or 0 for field_name in self.COMPONENT_FIELDS)
         if total < 0 or total > 100:
             raise ValidationError('Total of components must be between 0 and 100.')
 
