@@ -3,7 +3,7 @@ import os
 from urllib.parse import urlencode
 from django.conf import settings
 from django.core.exceptions import ValidationError
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.http import HttpResponse
 from django.db import transaction
 from django.contrib.auth import logout
@@ -143,6 +143,15 @@ def _result_publication_for(student, academic_year, term):
 def _result_access_allowed(student, academic_year, term):
     publication = _result_publication_for(student, academic_year, term)
     return bool(publication and publication.is_available)
+
+
+def _staff_student_queryset(user):
+    profile = getattr(user, 'profile', None)
+    if profile and profile.role == Profile.ROLE_CLASS_TEACHER and profile.assigned_class:
+        return Student.objects.filter(class_name=profile.assigned_class)
+    if _user_can_approve_promotions(user, profile):
+        return Student.objects.all()
+    return Student.objects.none()
 
 
 def _class_options():
@@ -567,6 +576,106 @@ def result_publications(request):
         'locked_count': len(rows) - released_count,
         'fee_cleared_count': fee_cleared_count,
         'approved_count': approved_count,
+    })
+
+
+@login_required
+@class_teacher_or_admin_required
+def staff_results(request):
+    current_academic_year, current_term = _current_period()
+    selected_academic_year = request.GET.get('academic_year') or current_academic_year
+    selected_term = request.GET.get('term') or current_term
+    selected_class = request.GET.get('class') or ''
+    search = (request.GET.get('q') or '').strip()
+    sort = request.GET.get('sort') or 'name'
+    valid_terms = {value for value, _label in TERM_CHOICES}
+    if selected_term not in valid_terms:
+        selected_term = current_term
+    try:
+        validate_academic_year(selected_academic_year)
+    except ValidationError:
+        selected_academic_year = current_academic_year
+
+    base_students = _staff_student_queryset(request.user)
+    profile = getattr(request.user, 'profile', None)
+    class_options = list(
+        base_students.exclude(class_name__isnull=True)
+        .exclude(class_name='')
+        .order_by('class_name')
+        .values_list('class_name', flat=True)
+        .distinct()
+    )
+    if selected_class and selected_class in class_options:
+        base_students = base_students.filter(class_name=selected_class)
+    elif selected_class:
+        selected_class = ''
+    if search:
+        base_students = base_students.filter(
+            Q(first_name__icontains=search)
+            | Q(other_names__icontains=search)
+            | Q(last_name__icontains=search)
+            | Q(student_id__icontains=search)
+        )
+
+    students = list(base_students.order_by('last_name', 'first_name', 'student_id'))
+    rows = []
+    for student in students:
+        if selected_term == 'session':
+            summary = _session_summary_for_student(student, selected_academic_year)
+            average_score = summary['overall_average']
+            grade_count = summary['subject_count']
+        else:
+            grades = Grade.objects.filter(
+                student=student,
+                academic_year=selected_academic_year,
+                term=selected_term,
+            )
+            grade_count = grades.count()
+            average_score = (sum(grade.marks for grade in grades) / grade_count) if grade_count else None
+        rows.append({
+            'student': student,
+            'average': average_score,
+            'grade_count': grade_count,
+        })
+
+    sorters = {
+        'name': lambda row: (row['student'].last_name, row['student'].first_name, row['student'].student_id),
+        'class': lambda row: (row['student'].class_name or '', row['student'].last_name, row['student'].first_name),
+        'student_id': lambda row: (row['student'].student_id, row['student'].last_name, row['student'].first_name),
+        'average_desc': lambda row: (row['average'] is not None, row['average'] or 0),
+        'average_asc': lambda row: (row['average'] is None, row['average'] or 0),
+    }
+    rows.sort(key=sorters.get(sort, sorters['name']), reverse=(sort == 'average_desc'))
+
+    query = {
+        'academic_year': selected_academic_year,
+        'term': selected_term,
+    }
+    if selected_class:
+        query['class'] = selected_class
+    if search:
+        query['q'] = search
+
+    return render(request, 'grades/staff_results.html', {
+        'rows': rows,
+        'class_options': class_options,
+        'term_options': [{'value': value, 'label': label} for value, label in TERM_CHOICES],
+        'sort_options': [
+            {'value': 'name', 'label': 'Name A-Z'},
+            {'value': 'class', 'label': 'Class'},
+            {'value': 'student_id', 'label': 'Student ID'},
+            {'value': 'average_desc', 'label': 'Average High-Low'},
+            {'value': 'average_asc', 'label': 'Average Low-High'},
+        ],
+        'selected_academic_year': selected_academic_year,
+        'selected_term': selected_term,
+        'selected_term_display': _term_display(selected_term),
+        'selected_class': selected_class,
+        'search': search,
+        'sort': sort,
+        'student_count': len(rows),
+        'profile': profile,
+        'query_string': urlencode(query),
     })
 
 
@@ -1027,10 +1136,40 @@ def enter_behavioral_assessments(request):
 @class_teacher_or_admin_required
 def manage_students(request):
     profile = getattr(request.user, 'profile', None)
+    selected_class = request.GET.get('class') or ''
+    search = (request.GET.get('q') or '').strip()
+    sort = request.GET.get('sort') or 'name'
     if profile and profile.role == 'class_teacher' and profile.assigned_class:
-        students = Student.objects.filter(class_name=profile.assigned_class).order_by('last_name')
+        students = Student.objects.filter(class_name=profile.assigned_class)
     else:
-        students = Student.objects.all().order_by('last_name')
+        students = Student.objects.all()
+
+    class_options = list(
+        students.exclude(class_name__isnull=True)
+        .exclude(class_name='')
+        .order_by('class_name')
+        .values_list('class_name', flat=True)
+        .distinct()
+    )
+    if selected_class and selected_class in class_options:
+        students = students.filter(class_name=selected_class)
+    elif selected_class:
+        selected_class = ''
+    if search:
+        students = students.filter(
+            Q(first_name__icontains=search)
+            | Q(other_names__icontains=search)
+            | Q(last_name__icontains=search)
+            | Q(student_id__icontains=search)
+        )
+    ordering = {
+        'name': ['last_name', 'first_name', 'student_id'],
+        'class': ['class_name', 'last_name', 'first_name'],
+        'student_id': ['student_id', 'last_name', 'first_name'],
+        'registered_newest': ['-enrollment_date', 'last_name', 'first_name'],
+        'registered_oldest': ['enrollment_date', 'last_name', 'first_name'],
+    }.get(sort, ['last_name', 'first_name', 'student_id'])
+    students = students.order_by(*ordering)
 
     can_approve_promotions = _user_can_approve_promotions(request.user, profile)
 
@@ -1088,6 +1227,17 @@ def manage_students(request):
         'promotion_options': promotion_options,
         'pending_promotion_requests': pending_promotion_requests,
         'can_approve_promotions': can_approve_promotions,
+        'class_options': class_options,
+        'selected_class': selected_class,
+        'search': search,
+        'sort': sort,
+        'sort_options': [
+            {'value': 'name', 'label': 'Name A-Z'},
+            {'value': 'class', 'label': 'Class'},
+            {'value': 'student_id', 'label': 'Student ID'},
+            {'value': 'registered_newest', 'label': 'Newest Registered'},
+            {'value': 'registered_oldest', 'label': 'Oldest Registered'},
+        ],
     })
  
 
@@ -1359,6 +1509,53 @@ def _head_teacher_comment(average_score):
         'F': 'Poor result. Urgent improvement and close guidance are required.',
     }
     return comments[_average_letter_grade(average_score)]
+
+
+def _session_summary_for_student(student, academic_year):
+    term_labels = dict(TERM_CHOICES)
+    academic_terms = ['first_term', 'second_term', 'third_term']
+    grades = (
+        Grade.objects.filter(
+            student=student,
+            academic_year=academic_year,
+            term__in=academic_terms,
+        )
+        .select_related('subject')
+        .order_by('subject__name', 'term')
+    )
+
+    subject_rows = {}
+    for grade in grades:
+        key = grade.subject_id
+        if key not in subject_rows:
+            subject_rows[key] = {
+                'subject': grade.subject.name,
+                'terms': {},
+            }
+        subject_rows[key]['terms'][grade.term] = grade.marks
+
+    rows = []
+    for item in subject_rows.values():
+        marks = [item['terms'][term] for term in academic_terms if term in item['terms']]
+        average = (sum(marks) / len(marks)) if marks else None
+        rows.append({
+            'subject': item['subject'],
+            'first_term': item['terms'].get('first_term'),
+            'second_term': item['terms'].get('second_term'),
+            'third_term': item['terms'].get('third_term'),
+            'average': average,
+            'letter': _average_letter_grade(average or 0),
+        })
+
+    valid_averages = [row['average'] for row in rows if row['average'] is not None]
+    overall_average = (sum(valid_averages) / len(valid_averages)) if valid_averages else None
+    return {
+        'rows': rows,
+        'overall_average': overall_average,
+        'subject_count': len(rows),
+        'promotion_decision': 'Promoted' if overall_average is not None and overall_average >= 50 else 'Not Promoted',
+        'term_labels': term_labels,
+    }
 
 
 def _resolve_logo_path():
@@ -1676,22 +1873,7 @@ def build_report_card(
     return buf.getvalue()
 
 
-@login_required
-def report_card_pdf(request):
-    try:
-        student = Student.objects.get(student_id=request.user.username)
-    except Student.DoesNotExist:
-        messages.error(request, 'Unable to generate report: student profile not found.')
-        return redirect('student_dashboard')
-
-    selected_academic_year, selected_term, _year_options, _term_options = _student_result_period(
-        student,
-        request.GET.get('academic_year'),
-        request.GET.get('term'),
-    )
-    if not _result_access_allowed(student, selected_academic_year, selected_term):
-        messages.error(request, 'Results are not yet available. They become visible once fees are cleared and the school approves them.')
-        return redirect('student_dashboard')
+def _term_report_pdf_bytes(student, selected_academic_year, selected_term):
     term_display = _term_display(selected_term)
 
     selected_grades = list(
@@ -1769,11 +1951,139 @@ def report_card_pdf(request):
         teacher_comment=selected_behavior.remarks if selected_behavior and selected_behavior.remarks else '',
         head_comment=_head_teacher_comment(average_score),
     )
+    return pdf_bytes
+
+
+def build_session_summary_report(*, student, academic_year):
+    summary = _session_summary_for_student(student, academic_year)
+    buf = BytesIO()
+    cv = canvas.Canvas(buf, pagesize=A4)
+    width, height = A4
+    margin = 18 * mm
+    content_width = width - 2 * margin
+    y = height - margin
+
+    _rounded_rect(cv, margin, y - 30 * mm, content_width, 30 * mm, 6, fill=_RED)
+    cv.setFillColor(_WHITE)
+    cv.setFont('Helvetica-Bold', 15)
+    cv.drawCentredString(width / 2, y - 11 * mm, 'CORINASIA INTERNATIONAL ACADEMY')
+    cv.setFont('Helvetica-Bold', 11)
+    cv.drawCentredString(width / 2, y - 22 * mm, f'{academic_year} SESSION SUMMARY RESULT')
+    y -= 36 * mm
+
+    _rounded_rect(cv, margin, y - 28 * mm, content_width, 28 * mm, 4, fill=_LIGHT, stroke=_GREY)
+    cv.setFillColor(_DARK)
+    cv.setFont('Helvetica-Bold', 8)
+    cv.drawString(margin + 4 * mm, y - 8 * mm, 'NAME:')
+    cv.drawString(margin + 4 * mm, y - 17 * mm, 'STUDENT ID:')
+    cv.drawString(margin + content_width / 2, y - 8 * mm, 'CLASS:')
+    cv.drawString(margin + content_width / 2, y - 17 * mm, 'SESSION AVERAGE:')
+    cv.setFont('Helvetica', 8)
+    cv.drawString(margin + 30 * mm, y - 8 * mm, student.full_name)
+    cv.drawString(margin + 30 * mm, y - 17 * mm, student.student_id)
+    cv.drawString(margin + content_width / 2 + 32 * mm, y - 8 * mm, student.class_name or 'Not assigned')
+    overall_text = f"{summary['overall_average']:.1f}" if summary['overall_average'] is not None else 'No scores'
+    cv.drawString(margin + content_width / 2 + 42 * mm, y - 17 * mm, overall_text)
+    y -= 36 * mm
+
+    rows = [['SUBJECT', 'FIRST TERM', 'SECOND TERM', 'THIRD TERM', 'SESSION AVG', 'GRADE']]
+    for row in summary['rows']:
+        rows.append([
+            row['subject'],
+            '-' if row['first_term'] is None else f"{row['first_term']:.0f}",
+            '-' if row['second_term'] is None else f"{row['second_term']:.0f}",
+            '-' if row['third_term'] is None else f"{row['third_term']:.0f}",
+            '-' if row['average'] is None else f"{row['average']:.1f}",
+            row['letter'],
+        ])
+    if len(rows) == 1:
+        rows.append(['No recorded scores for this session', '-', '-', '-', '-', '-'])
+
+    table = Table(rows, colWidths=[62 * mm, 24 * mm, 24 * mm, 24 * mm, 24 * mm, 18 * mm])
+    table_style = TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), _RED),
+        ('TEXTCOLOR', (0, 0), (-1, 0), _WHITE),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 8),
+        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+        ('GRID', (0, 0), (-1, -1), 0.4, _GREY),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [_WHITE, colors.HexColor('#fdf6f0')]),
+        ('TOPPADDING', (0, 0), (-1, -1), 4),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+    ])
+    for row_index, row in enumerate(summary['rows'], start=1):
+        table_style.add('TEXTCOLOR', (-1, row_index), (-1, row_index), _letter_color(row['letter']))
+        table_style.add('FONTNAME', (-1, row_index), (-1, row_index), 'Helvetica-Bold')
+    table.setStyle(table_style)
+    _table_width, table_height = table.wrapOn(cv, content_width, height)
+    table.drawOn(cv, margin, y - table_height)
+    y -= table_height + 10 * mm
+
+    _rounded_rect(cv, margin, y - 18 * mm, content_width, 18 * mm, 4, fill=_LIGHT, stroke=_GREY)
+    cv.setFillColor(_RED)
+    cv.setFont('Helvetica-Bold', 9)
+    cv.drawString(margin + 4 * mm, y - 7 * mm, 'PROMOTION DECISION:')
+    cv.setFillColor(_DARK)
+    cv.setFont('Helvetica-Bold', 10)
+    cv.drawString(margin + 48 * mm, y - 7 * mm, summary['promotion_decision'])
+    cv.setFont('Helvetica', 7)
+    cv.drawString(margin + 4 * mm, y - 14 * mm, 'Decision is based on the average of first, second and third term subject results.')
+
+    cv.showPage()
+    cv.save()
+    return buf.getvalue()
+
+
+@login_required
+def report_card_pdf(request):
+    try:
+        student = Student.objects.get(student_id=request.user.username)
+    except Student.DoesNotExist:
+        messages.error(request, 'Unable to generate report: student profile not found.')
+        return redirect('student_dashboard')
+
+    selected_academic_year, selected_term, _year_options, _term_options = _student_result_period(
+        student,
+        request.GET.get('academic_year'),
+        request.GET.get('term'),
+    )
+    if not _result_access_allowed(student, selected_academic_year, selected_term):
+        messages.error(request, 'Results are not yet available. They become visible once fees are cleared and the school approves them.')
+        return redirect('student_dashboard')
+    pdf_bytes = _term_report_pdf_bytes(student, selected_academic_year, selected_term)
 
     safe_student_id = student.student_id.replace('/', '-')
     safe_year = selected_academic_year.replace('/', '-')
     filename = f'{safe_student_id}_{safe_year}_{selected_term}_report.pdf'
 
+    response = HttpResponse(pdf_bytes, content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+@class_teacher_or_admin_required
+def staff_report_pdf(request, student_pk):
+    student = get_object_or_404(_staff_student_queryset(request.user), pk=student_pk)
+    selected_academic_year = request.GET.get('academic_year') or _current_period()[0]
+    selected_term = request.GET.get('term') or _current_period()[1]
+    valid_terms = {value for value, _label in TERM_CHOICES}
+    if selected_term not in valid_terms:
+        selected_term = _current_period()[1]
+    try:
+        validate_academic_year(selected_academic_year)
+    except ValidationError:
+        selected_academic_year = _current_period()[0]
+
+    if selected_term == 'session':
+        pdf_bytes = build_session_summary_report(student=student, academic_year=selected_academic_year)
+    else:
+        pdf_bytes = _term_report_pdf_bytes(student, selected_academic_year, selected_term)
+
+    safe_student_id = student.student_id.replace('/', '-')
+    safe_year = selected_academic_year.replace('/', '-')
+    filename = f'{safe_student_id}_{safe_year}_{selected_term}_staff_report.pdf'
     response = HttpResponse(pdf_bytes, content_type='application/pdf')
     response['Content-Disposition'] = f'attachment; filename="{filename}"'
     return response

@@ -194,6 +194,7 @@ tempCodeRunnerFile.py
 cache/
 RecycleBin/
 logs/
+backups/
 *.bak
 *.xlsx
 *.pid

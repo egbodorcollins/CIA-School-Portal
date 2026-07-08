@@ -242,6 +242,28 @@ python manage.py shell
 #### Exporting Reports
 Use the admin interface or custom views to export PDF reports of student grades and analytics.
 
+### Database Backups
+
+Create a timestamped backup of users and portal records:
+
+```bash
+python manage.py backup_database
+```
+
+Backups are written to `backups/` as compressed JSON files. Keep copies outside the project folder too, such as an external drive or cloud storage.
+
+Restore a backup with:
+
+```bash
+python manage.py loaddata backups/portal_backup_YYYYMMDD_HHMMSS.json.gz
+```
+
+The command keeps the newest 30 backups by default. Change that with:
+
+```bash
+python manage.py backup_database --keep 90
+```
+
 ## Database Schema
 
 ### Student Model
