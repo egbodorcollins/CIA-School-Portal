@@ -136,6 +136,8 @@ DATABASES = {
         ssl_require=DATABASE_SSL_REQUIRE if DATABASE_IS_POSTGRES else False,
     )
 }
+if DATABASE_IS_POSTGRES:
+    DATABASES['default']['DISABLE_SERVER_SIDE_CURSORS'] = True
 
 
 # Password validation
