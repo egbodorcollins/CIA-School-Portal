@@ -16,5 +16,20 @@
         </tr>
     </table>
 </div>
+<div class="module">
+    <table>
+        <caption>
+            <a href="{% url 'staff_results' %}" class="section">Student Results</a>
+        </caption>
+        <tr>
+            <th scope="row">
+                <a href="{% url 'staff_results' %}">View and Print Student Results</a>
+            </th>
+            <td>
+                <a href="{% url 'staff_results' %}?term=session" class="button">Session summaries</a>
+            </td>
+        </tr>
+    </table>
+</div>
 {{ block.super }}
 {% endblock %}

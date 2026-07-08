@@ -764,6 +764,87 @@ class DeleteStudentTests(TestCase):
         self.assertContains(response, reverse('delete_student', args=[self.student.student_id]))
 
 
+class StaffResultsTests(TestCase):
+    def setUp(self):
+        TermSetting.objects.create(current_academic_year='2025/2026', current_term='third_term')
+        self.admin_user = User.objects.create_user(username='portaladmin', password='pass12345')
+        self.admin_user.profile.role = Profile.ROLE_ADMIN
+        self.admin_user.profile.save()
+        self.teacher_user = User.objects.create_user(username='basic5teacher', password='pass12345')
+        self.teacher_user.profile.role = Profile.ROLE_CLASS_TEACHER
+        self.teacher_user.profile.assigned_class = 'Basic 5'
+        self.teacher_user.profile.save()
+        self.basic5_student = Student.objects.create(
+            student_id='CIA/B52026/0001',
+            first_name='John',
+            last_name='Doe',
+            class_name='Basic 5',
+        )
+        self.basic4_student = Student.objects.create(
+            student_id='CIA/B42026/0001',
+            first_name='Jane',
+            last_name='Stone',
+            class_name='Basic 4',
+        )
+        self.math = Subject.objects.create(code='MAT B51', name='Mathematics')
+        for term, exam in [('first_term', 40), ('second_term', 45), ('third_term', 50)]:
+            Grade.objects.create(
+                student=self.basic5_student,
+                subject=self.math,
+                academic_year='2025/2026',
+                term=term,
+                homework=5,
+                class_work=10,
+                project=5,
+                first_test=10,
+                midterm_test=10,
+                exam=exam,
+            )
+
+    def test_admin_can_filter_and_print_student_results(self):
+        self.client.login(username='portaladmin', password='pass12345')
+
+        response = self.client.get(reverse('staff_results'), {
+            'class': 'Basic 5',
+            'q': 'John',
+            'sort': 'average_desc',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Doe John')
+        self.assertNotContains(response, 'Stone Jane')
+        self.assertContains(response, reverse('staff_report_pdf', args=[self.basic5_student.pk]))
+
+    def test_class_teacher_result_list_is_limited_to_assigned_class(self):
+        self.client.login(username='basic5teacher', password='pass12345')
+
+        response = self.client.get(reverse('staff_results'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Doe John')
+        self.assertNotContains(response, 'Stone Jane')
+
+    def test_class_teacher_cannot_print_another_class_result(self):
+        self.client.login(username='basic5teacher', password='pass12345')
+
+        response = self.client.get(reverse('staff_report_pdf', args=[self.basic4_student.pk]))
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_staff_session_summary_pdf_generates_from_three_terms(self):
+        self.client.login(username='portaladmin', password='pass12345')
+
+        response = self.client.get(reverse('staff_report_pdf', args=[self.basic5_student.pk]), {
+            'academic_year': '2025/2026',
+            'term': 'session',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response['Content-Type'], 'application/pdf')
+        self.assertTrue(response.content.startswith(b'%PDF'))
+        self.assertIn('CIA-B52026-0001_2025-2026_session_staff_report.pdf', response['Content-Disposition'])
+
+
 class PromoteClassTests(TestCase):
     def setUp(self):
         self.staff_user = User.objects.create_user(username='admin', password='pass12345')

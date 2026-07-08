@@ -1,0 +1,109 @@
+{% extends 'grades/base.html' %}
+{% block content %}
+<div class="dashboard-shell">
+    <div class="dashboard-card release-page">
+        <div class="release-header">
+            <div>
+                <h2>Student Results</h2>
+                <p class="helper-text">View and print term reports or the session summary for students in your scope.</p>
+            </div>
+            <a class="button button-secondary" href="{% url 'teacher_dashboard' %}">Back to Dashboard</a>
+        </div>
+
+        <div class="release-stats" aria-label="Result list summary">
+            <div class="release-stat">
+                <span>Students Found</span>
+                <strong>{{ student_count }}</strong>
+            </div>
+            <div class="release-stat">
+                <span>Period</span>
+                <strong>{{ selected_term_display }}</strong>
+            </div>
+            <div class="release-stat">
+                <span>Academic Year</span>
+                <strong>{{ selected_academic_year }}</strong>
+            </div>
+        </div>
+
+        <form method="get" class="release-filters">
+            <div class="field-row">
+                <label for="academic-year">Academic Year</label>
+                <input id="academic-year" type="text" name="academic_year" value="{{ selected_academic_year }}" placeholder="2025/2026">
+            </div>
+            <div class="field-row">
+                <label for="term">Result Type</label>
+                <select id="term" name="term">
+                    {% for term in term_options %}
+                        <option value="{{ term.value }}" {% if term.value == selected_term %}selected{% endif %}>{{ term.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field-row">
+                <label for="class">Class</label>
+                <select id="class" name="class">
+                    <option value="">All classes</option>
+                    {% for class_name in class_options %}
+                        <option value="{{ class_name }}" {% if class_name == selected_class %}selected{% endif %}>{{ class_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field-row">
+                <label for="sort">Sort</label>
+                <select id="sort" name="sort">
+                    {% for option in sort_options %}
+                        <option value="{{ option.value }}" {% if option.value == sort %}selected{% endif %}>{{ option.label }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="field-row release-search">
+                <label for="q">Search</label>
+                <input id="q" type="search" name="q" value="{{ search }}" placeholder="Name or student ID">
+            </div>
+            <button type="submit" class="button button-secondary">Filter</button>
+        </form>
+
+        {% if rows %}
+            <div class="grades-table release-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Student</th>
+                            <th>Class</th>
+                            <th>Average</th>
+                            <th>Scores</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                            <tr>
+                                <td>
+                                    <strong>{{ row.student.full_name }}</strong>
+                                    <span class="table-muted">{{ row.student.student_id }}</span>
+                                </td>
+                                <td>{{ row.student.class_name|default:'No Class' }}</td>
+                                <td>
+                                    {% if row.average is not None %}
+                                        {{ row.average|floatformat:1 }}
+                                    {% else %}
+                                        <span class="table-muted">No scores</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ row.grade_count }}</td>
+                                <td>
+                                    <a class="button button-small" target="_blank" href="{% url 'staff_report_pdf' row.student.pk %}?academic_year={{ selected_academic_year|urlencode }}&term={{ selected_term|urlencode }}">Print Result</a>
+                                    {% if selected_term != 'session' %}
+                                        <a class="button button-small button-secondary" target="_blank" href="{% url 'staff_report_pdf' row.student.pk %}?academic_year={{ selected_academic_year|urlencode }}&term=session">Session Summary</a>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <p class="empty-state">No students match the selected filters.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

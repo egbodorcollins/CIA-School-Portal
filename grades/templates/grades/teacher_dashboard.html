@@ -14,6 +14,7 @@
                 <a class="button button-secondary" href="{% url 'class_analytics' %}">Class Analytics</a>
                 <a class="button button-secondary" href="{% url 'enter_behavioral_assessments' %}">Enter Behavioral Assessments</a>
                 <a class="button button-secondary" href="{% url 'manage_students' %}">Manage Students</a>
+                <a class="button button-primary" href="{% url 'staff_results' %}">View & Print Results</a>
                 {% if can_manage_result_publications %}
                     <a class="button button-primary" href="{% url 'result_publications' %}">Result Releases</a>
                 {% endif %}
@@ -54,6 +55,7 @@
                             <li>
                                 {{ student.student_id }} - {{ student.full_name }} ({{ student.class_name|default:'No Class' }})
                                 <a href="{% url 'enter_academic_scores' %}?student={{ student.pk }}" class="button button-small" style="margin-left:8px;">Enter Scores</a>
+                                <a href="{% url 'staff_report_pdf' student.pk %}" target="_blank" class="button button-small button-secondary" style="margin-left:8px;">Print Result</a>
                             </li>
                         {% endfor %}
                     </ul>
