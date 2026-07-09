@@ -30,6 +30,7 @@ urlpatterns = [
     path('teacher/enter-behavior/', views.enter_behavioral_assessments, name='enter_behavioral_assessments'),
     path('teacher/results/', views.staff_results, name='staff_results'),
     path('teacher/results/<int:student_pk>/pdf/', views.staff_report_pdf, name='staff_report_pdf'),
+    path('portal/dashboard/', views.admin_dashboard, name='admin_dashboard'),
     path('admin-staff/result-releases/', views.result_publications, name='result_publications'),
     path('teacher/manage-students/', views.manage_students, name='manage_students'),
     path('teacher/manage-students/promote-class/', views.promote_class, name='promote_class'),
