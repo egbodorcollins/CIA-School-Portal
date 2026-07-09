@@ -1,35 +1,62 @@
-{% extends "admin/index.html" %}
+{% extends "grades/base.html" %}
+{% load i18n %}
 
-{% block content %}
-<div class="module">
-    <table>
-        <caption>
-            <a href="{% url 'manage_students' %}#end-of-year-promotion" class="section">End-of-Year Student Promotion Approvals</a>
-        </caption>
-        <tr>
-            <th scope="row">
-                <a href="{% url 'manage_students' %}#end-of-year-promotion">Review Promotion Requests</a>
-            </th>
-            <td>
-                <a href="{% url 'manage_students' %}#end-of-year-promotion" class="button">Open promotion tool</a>
-            </td>
-        </tr>
-    </table>
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Control tower</p>
+        <h2>Administrative workspace</h2>
+        <p>Manage students, staff, promotions, and result releases from one polished workspace.</p>
+    </div>
+    <a class="button button-primary" href="{% url 'admin_dashboard' %}">Open portal dashboard</a>
 </div>
-<div class="module">
-    <table>
-        <caption>
-            <a href="{% url 'staff_results' %}" class="section">Student Results</a>
-        </caption>
-        <tr>
-            <th scope="row">
-                <a href="{% url 'staff_results' %}">View and Print Student Results</a>
-            </th>
-            <td>
-                <a href="{% url 'staff_results' %}?term=session" class="button">Session summaries</a>
-            </td>
-        </tr>
-    </table>
+
+<div class="portal-grid portal-grid--secondary">
+    <section class="portal-panel">
+        <div class="portal-panel-header">
+            <h3>Administration modules</h3>
+        </div>
+        <div id="content-main" class="app-list">
+            {% include "admin/app_list.html" with app_list=app_list show_changelinks=True %}
+        </div>
+    </section>
+
+    <section class="portal-panel">
+        <div class="portal-panel-header">
+            <h3>Quick links</h3>
+        </div>
+        <div class="portal-list">
+            <a class="portal-card" href="{% url 'manage_students' %}#end-of-year-promotion">
+                <span class="portal-card-label">Promotions</span>
+                <strong>Review pending approvals</strong>
+                <p>Open the promotion management tool and review requests waiting for action.</p>
+            </a>
+            <a class="portal-card" href="{% url 'staff_results' %}">
+                <span class="portal-card-label">Results</span>
+                <strong>View and print reports</strong>
+                <p>Access student results and session summaries without leaving the portal.</p>
+            </a>
+        </div>
+    </section>
 </div>
-{{ block.super }}
+
+<div class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>{% translate 'Recent actions' %}</h3>
+    </div>
+    {% load log %}
+    {% get_admin_log 10 as admin_log for_user user %}
+    {% if not admin_log %}
+        <p class="empty-state">No recent actions have been recorded yet.</p>
+    {% else %}
+        <ul class="portal-list">
+            {% for entry in admin_log %}
+                <li>
+                    <strong>{% if entry.is_addition %}+{% elif entry.is_change %}↺{% else %}−{% endif %} {{ entry.object_repr }}</strong>
+                    <span>{{ entry.content_type.name|default:'Activity' }}</span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</div>
 {% endblock %}

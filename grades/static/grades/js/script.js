@@ -4,8 +4,10 @@ const initializePortal = () => {
   const nav = document.querySelector('.top-nav');
   const accountToggle = document.querySelector('.account-toggle');
   const accountMenu = document.querySelector('.account-dropdown');
+  const sidebarToggle = document.querySelector('.sidebar-toggle');
+  const portalShell = document.querySelector('.portal-shell');
 
-  const isMobile = () => window.matchMedia('(max-width: 860px)').matches;
+  const isMobile = () => window.matchMedia('(max-width: 960px)').matches;
 
   const closeNav = () => {
     if (!nav || !navToggle) return;
@@ -32,6 +34,20 @@ const initializePortal = () => {
       link.addEventListener('click', () => {
         if (isMobile()) closeNav();
       });
+    });
+  }
+
+  const setSidebarState = () => {
+    if (!sidebarToggle || !portalShell) return;
+    const shouldCollapse = isMobile();
+    portalShell.classList.toggle('sidebar-collapsed', shouldCollapse);
+    sidebarToggle.setAttribute('aria-expanded', String(!shouldCollapse));
+  };
+
+  if (sidebarToggle && portalShell) {
+    sidebarToggle.addEventListener('click', () => {
+      const isCollapsed = portalShell.classList.toggle('sidebar-collapsed');
+      sidebarToggle.setAttribute('aria-expanded', String(!isCollapsed));
     });
   }
 
@@ -68,7 +84,10 @@ const initializePortal = () => {
   window.addEventListener('resize', () => {
     closeNav();
     closeAccount();
+    setSidebarState();
   });
+
+  setSidebarState();
 
   // --- Sticky Header Shadow & Back to Top Logic ---
   const header = document.querySelector('.site-header');
@@ -76,10 +95,9 @@ const initializePortal = () => {
   const scrollThreshold = 300; 
 
   const handleScroll = () => {
-    // Toggle header shadow
-    header.classList.toggle('scrolled', window.scrollY > 10);
-
-    // Toggle Back to Top button
+    if (header) {
+      header.classList.toggle('scrolled', window.scrollY > 10);
+    }
     if (backToTopBtn) {
       backToTopBtn.classList.toggle('visible', window.scrollY > scrollThreshold);
     }
@@ -129,3 +147,4 @@ if (document.readyState === 'loading') {
 } else {
   initializePortal();
 }
+

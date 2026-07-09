@@ -10,82 +10,173 @@
     <script async defer crossorigin="anonymous" src="https://connect.facebook.net/en_US/sdk.js#xfbml=1&version=v18.0" nonce="YOUR_NONCE"></script>
     <script async src="https://www.instagram.com/embed.js"></script>
 </head>
-<body>
+<body class="{% if portal_use_sidebar_nav %}portal-page{% endif %}">
     <div id="fb-root"></div>
-    <header class="site-header">
-        <div class="site-header-inner">
-            <a class="brand" href="{% url 'home' %}">
-                <img src="{% static 'logo2.png' %}" alt="CIA Logo" class="brand-logo">
-                <div class="brand-copy">
-                    <h1>Corinasia International Academy</h1>
-                    <p>CIA - Uniqueness in All</p>
-                </div>
-            </a>
-            <div class="header-meta">
-                <span class="header-pill">Year: {{ portal_current_academic_year }}</span>
-                <span class="header-pill">Term: {{ portal_current_term_display }}</span>
-                <span class="header-pill">Date: {{ portal_current_date|date:'M j, Y' }}</span>
-            </div>
-            <nav class="top-nav" id="primary-navigation">
-                <a href="{% url 'home' %}">Home</a>
-                <a href="#contact">Contact Us</a>
-                {% if user.is_authenticated %}
-                    {% if portal_user_profile %}
-                        {% if portal_user_profile.role == 'class_teacher' or portal_user_profile.role == 'subject_teacher' %}
-                            <a href="{% url 'teacher_dashboard' %}">Teacher Dashboard</a>
-                        {% elif portal_user_profile.role == 'admin' %}
-                            <a href="{% url 'result_publications' %}">Result Releases</a>
-                        {% else %}
-                            <a href="{% url 'student_dashboard' %}">Student Dashboard</a>
-                        {% endif %}
-                    {% else %}
-                        <a href="{% url 'student_dashboard' %}">Student Dashboard</a>
-                    {% endif %}
-                {% else %}
-                    <a href="{% url 'login' %}">Login</a>
-                {% endif %}
-            </nav>
-            <div class="header-actions">
-                <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Toggle dark mode">🌙</button>
-                <button class="nav-toggle" type="button" aria-controls="primary-navigation" aria-expanded="false">
-                    <span class="nav-toggle-bars" aria-hidden="true"></span>
-                    <span class="nav-toggle-label">Menu</span>
-                </button>
-                {% if user.is_authenticated %}
-                    <div class="account-menu">
-                        <button class="account-toggle" type="button" aria-controls="account-dropdown" aria-haspopup="menu" aria-expanded="false" aria-label="Open profile menu for {{ portal_user_display_name }}">
-                            <span class="account-avatar" aria-hidden="true">{{ portal_user_initials }}</span>
-                            <span class="account-chevron" aria-hidden="true">&#9662;</span>
-                        </button>
-                        <div class="account-dropdown" id="account-dropdown" hidden>
-                            <div class="account-dropdown-header">
-                                <strong>{{ portal_user_display_name }}</strong>
-                                <span>{{ user.username }}</span>
-                            </div>
-                            <a href="{% url 'password_change' %}">Change Password</a>
-                            <a href="{% url 'logout' %}">Log Out</a>
+
+    {% block content %}
+        {% if portal_use_sidebar_nav %}
+            <div class="portal-shell">
+                <aside class="portal-sidebar">
+                    <div class="portal-brand">
+                        <div class="portal-brand-mark">
+                            <a class="brand" href="{% url 'home' %}">
+                            <img src="{% static 'logo2.png' %}" alt="CIA Logo" class="brand-logo">
+                        </div>
+                        <div>
+                            <strong>Admin Portal</strong>
+                            <span>Single admin workspace</span>
                         </div>
                     </div>
+
+                    <nav class="portal-nav" aria-label="Portal sections">
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'admin_dashboard' or request.resolver_match.url_name == 'index' %}is-active{% endif %}" href="{% url 'admin_dashboard' %}">
+                            <span class="portal-nav-icon">⌂</span><span>Dashboard</span>
+                        </a>
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'teacher_dashboard' %}is-active{% endif %}" href="{% url 'teacher_dashboard' %}">
+                            <span class="portal-nav-icon">▣</span><span>Classes</span>
+                        </a>
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'enter_academic_scores' %}is-active{% endif %}" href="{% url 'enter_academic_scores' %}">
+                            <span class="portal-nav-icon">◫</span><span>Subjects</span>
+                        </a>
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'manage_students' %}is-active{% endif %}" href="{% url 'manage_students' %}">
+                            <span class="portal-nav-icon">◍</span><span>Students</span>
+                        </a>
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'register_teacher' %}is-active{% endif %}" href="{% url 'register_teacher' %}">
+                            <span class="portal-nav-icon">◔</span><span>Staff</span>
+                        </a>
+                        <a class="portal-nav-item" href="{% url 'manage_students' %}#end-of-year-promotion">
+                            <span class="portal-nav-icon">⇄</span><span>Promotion</span>
+                        </a>
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'staff_results' %}is-active{% endif %}" href="{% url 'staff_results' %}">
+                            <span class="portal-nav-icon">◷</span><span>Results</span>
+                        </a>
+                    </nav>
+
+                    <div class="portal-sidebar-footer">
+                        <a class="portal-sidebar-link" href="{% url 'set_current_term' %}">Settings</a>
+                    </div>
+                </aside>
+
+                <div class="portal-main">
+                    <header class="portal-topbar">
+                        <button class="sidebar-toggle" type="button" aria-label="Toggle sidebar" aria-expanded="true">
+                            <span class="sidebar-toggle-icon" aria-hidden="true">☰</span>
+                            <span class="sidebar-toggle-text">Sidebar</span>
+                        </button>
+                        <div class="portal-search">
+                            <label class="sr-only" for="portal-search">Global search</label>
+                            <input id="portal-search" name="q" type="search" placeholder="Global search" />
+                        </div>
+                        <div class="portal-topbar-actions">
+                            <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Toggle dark mode">🌙</button>
+                            <div class="portal-profile">
+                                <span class="account-avatar" aria-hidden="true">{{ portal_user_initials }}</span>
+                                <div>
+                                    <strong>{{ portal_user_display_name }}</strong>
+                                    <span>{{ portal_user_profile.get_role_display|default:'Admin' }}</span>
+                                </div>
+                            </div>
+                            <a class="button button-secondary button-small" href="{% url 'password_change' %}">Change Password</a>
+                            <a class="button button-secondary button-small" href="{% url 'logout' %}">Log Out</a>
+                        </div>
+                    </header>
+
+                    <section class="portal-content">
+                        {% if messages %}
+                            <div class="messages">
+                                {% for message in messages %}
+                                    <div class="message {{ message.tags }}">{{ message }}</div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+        {% else %}
+            {% block site_header %}
+            <header class="site-header">
+                <div class="site-header-inner">
+                    <a class="brand" href="{% url 'home' %}">
+                        <img src="{% static 'logo2.png' %}" alt="CIA Logo" class="brand-logo">
+                        <div class="brand-copy">
+                            <h1>Corinasia International Academy</h1>
+                            <p>CIA - Uniqueness in All</p>
+                        </div>
+                    </a>
+                    <div class="header-meta">
+                        <span class="header-pill">Year: {{ portal_current_academic_year }}</span>
+                        <span class="header-pill">Term: {{ portal_current_term_display }}</span>
+                        <span class="header-pill">Date: {{ portal_current_date|date:'M j, Y' }}</span>
+                    </div>
+                    <nav class="top-nav" id="primary-navigation">
+                        <a href="{% url 'home' %}">Home</a>
+                        <a href="#contact">Contact Us</a>
+                        {% if user.is_authenticated %}
+                            {% if portal_user_profile %}
+                                {% if portal_user_profile.role == 'class_teacher' or portal_user_profile.role == 'subject_teacher' %}
+                                    <a href="{% url 'teacher_dashboard' %}">Teacher Dashboard</a>
+                                {% elif portal_user_profile.role == 'admin' %}
+                                    <a href="{% url 'admin_dashboard' %}">Admin Dashboard</a>
+                                {% else %}
+                                    <a href="{% url 'student_dashboard' %}">Student Dashboard</a>
+                                {% endif %}
+                            {% else %}
+                                <a href="{% url 'student_dashboard' %}">Student Dashboard</a>
+                            {% endif %}
+                        {% else %}
+                            <a href="{% url 'login' %}">Login</a>
+                        {% endif %}
+                    </nav>
+                    <div class="header-actions">
+                        <button class="theme-toggle" type="button" aria-pressed="false" aria-label="Toggle dark mode">🌙</button>
+                        <button class="nav-toggle" type="button" aria-controls="primary-navigation" aria-expanded="false">
+                            <span class="nav-toggle-bars" aria-hidden="true"></span>
+                            <span class="nav-toggle-label">Menu</span>
+                        </button>
+                        {% if user.is_authenticated %}
+                            <div class="account-menu">
+                                <button class="account-toggle" type="button" aria-controls="account-dropdown" aria-haspopup="menu" aria-expanded="false" aria-label="Open profile menu for {{ portal_user_display_name }}">
+                                    <span class="account-avatar" aria-hidden="true">{{ portal_user_initials }}</span>
+                                    <span class="account-chevron" aria-hidden="true">&#9662;</span>
+                                </button>
+                                <div class="account-dropdown" id="account-dropdown" hidden>
+                                    <div class="account-dropdown-header">
+                                        <strong>{{ portal_user_display_name }}</strong>
+                                        <span>{{ user.username }}</span>
+                                    </div>
+                                    <a href="{% url 'password_change' %}">Change Password</a>
+                                    <a href="{% url 'logout' %}">Log Out</a>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </header>
+            {% endblock %}
+            <main class="page-shell {% block page_shell_class %}{% endblock %}">
+                {% if messages %}
+                    <div class="messages">
+                        {% for message in messages %}
+                            <div class="message {{ message.tags }}">{{ message }}</div>
+                        {% endfor %}
+                    </div>
                 {% endif %}
-            </div>
-        </div>
-    </header>
-    <main class="page-shell">
-        {% if messages %}
-            <div class="messages">
-                {% for message in messages %}
-                    <div class="message {{ message.tags }}">{{ message }}</div>
-                {% endfor %}
-            </div>
         {% endif %}
-        {% block content %}{% endblock %}
-    </main>
-    <footer class="site-footer">
-        <p>&copy; {% now 'Y' %} Corinasia International Academy</p>
-    </footer>
+
+                {% block page_content %}{% endblock %}
+
+        {% if portal_use_sidebar_nav %}
+                    </section>
+                </div>
+            </div>
+        {% else %}
+            </main>
+            {% block site_footer %}
+            <footer class="site-footer">
+                <p>&copy; {% now 'Y' %} Corinasia International Academy</p>
+            </footer>
+            {% endblock %}
+        {% endif %}
+    {% endblock %}
 
     <button class="back-to-top" aria-label="Back to top" title="Back to top">↑</button>
-
     <script src="{% static 'grades/js/script.js' %}"></script>
 </body>
 </html>

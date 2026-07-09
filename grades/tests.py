@@ -226,6 +226,41 @@ class PortalRenderingTests(TestCase):
         self.assertContains(response, 'End-of-Year Student Promotion Approvals')
         self.assertContains(response, f"{reverse('manage_students')}#end-of-year-promotion")
 
+    def test_admin_dashboard_uses_portal_shell_navigation(self):
+        admin_user = User.objects.create_superuser(
+            username='portaladminshell',
+            password='pass12345',
+            email='portaladminshell@example.com',
+        )
+        self.client.login(username=admin_user.username, password='pass12345')
+
+        response = self.client.get(reverse('admin_dashboard'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Portal Overview')
+        self.assertContains(response, 'Global search')
+        self.assertContains(response, 'Classes')
+        self.assertContains(response, 'Results status')
+        self.assertNotContains(response, 'site-header')
+        self.assertNotContains(response, 'site-footer')
+
+    def test_admin_index_uses_portal_shell_navigation(self):
+        admin_user = User.objects.create_superuser(
+            username='portaladminindex',
+            password='pass12345',
+            email='portaladminindex@example.com',
+        )
+        self.client.login(username=admin_user.username, password='pass12345')
+
+        response = self.client.get(reverse('admin:index'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'portal-sidebar')
+        self.assertContains(response, 'Global search')
+        self.assertContains(response, 'Headteacher Portal')
+        self.assertNotContains(response, 'site-header')
+        self.assertNotContains(response, 'site-footer')
+
     def test_portal_admin_header_links_to_result_releases(self):
         admin_user = User.objects.create_user(username='portaladmin', password='pass12345')
         admin_user.profile.role = Profile.ROLE_ADMIN

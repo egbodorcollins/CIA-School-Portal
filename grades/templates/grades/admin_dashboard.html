@@ -1,0 +1,74 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Control tower</p>
+        <h2>Portal Overview</h2>
+        <p>Keep classes, staff, results, and announcements aligned with the active academic year.</p>
+    </div>
+    <a class="button button-primary" href="{% url 'set_current_term' %}">Review current term</a>
+</div>
+
+<div class="portal-grid portal-grid--cards">
+    <a class="portal-card" href="{% url 'manage_students' %}">
+        <span class="portal-card-label">Enrollment snapshot</span>
+        <strong>{{ total_students }} students</strong>
+        <p>Across {{ class_count }} active classes.</p>
+    </a>
+    <a class="portal-card" href="{% url 'register_teacher' %}">
+        <span class="portal-card-label">Staff snapshot</span>
+        <strong>{{ teacher_count }} teachers</strong>
+        <p>Class and subject teaching coverage is visible at a glance.</p>
+    </a>
+    <a class="portal-card" href="{% url 'result_publications' %}">
+        <span class="portal-card-label">Results status</span>
+        <strong>{{ locked_count }} pending</strong>
+        <p>Classes still awaiting result approvals.</p>
+    </a>
+    <div class="portal-card portal-card--wide">
+        <span class="portal-card-label">Academic year banner</span>
+        <strong>{{ current_academic_year }} · {{ current_term_display }}</strong>
+        <p>Use the settings area to update the active period whenever a new term begins.</p>
+    </div>
+</div>
+
+<div class="portal-grid portal-grid--secondary">
+    <section class="portal-panel">
+        <div class="portal-panel-header">
+            <h3>Recent activity</h3>
+            <a href="#">New announcement</a>
+        </div>
+        {% if recent_activities %}
+            <ul class="portal-list">
+                {% for activity in recent_activities|slice:':4' %}
+                    <li>
+                        <strong>{{ activity.description|default:'Portal activity' }}</strong>
+                        <span>{{ activity.created_at|date:'M j, Y' }}</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="empty-state">No recent activity has been recorded yet.</p>
+        {% endif %}
+    </section>
+
+    <section class="portal-panel">
+        <div class="portal-panel-header">
+            <h3>Promotion requests</h3>
+            <a href="{% url 'manage_students' %}#end-of-year-promotion">Review</a>
+        </div>
+        {% if pending_promotions %}
+            <ul class="portal-list">
+                {% for request in pending_promotions %}
+                    <li>
+                        <strong>{{ request.requested_by.get_full_name|default:request.requested_by.username }}</strong>
+                        <span>{{ request.status|title }}</span>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="empty-state">No promotion requests are waiting for review.</p>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
