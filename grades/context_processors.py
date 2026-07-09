@@ -23,6 +23,7 @@ def portal_globals(request):
     user_display_name = ''
     user_initials = 'U'
     profile = None
+    use_sidebar_nav = False
     if getattr(request, 'user', None) and request.user.is_authenticated:
         user_display_name = request.user.get_full_name().strip() or request.user.username
         user_initials = _build_initials(user_display_name, request.user.username)
@@ -30,6 +31,13 @@ def portal_globals(request):
             profile = request.user.profile
         except Exception:
             profile = None
+        # Staff/superuser accounts are treated as admin throughout the app
+        # (see decorators.admin_required), so give them the sidebar too.
+        use_sidebar_nav = bool(
+            (profile and profile.role == 'admin')
+            or request.user.is_superuser
+            or request.user.is_staff
+        )
 
     return {
         'portal_current_term': current_term,
@@ -39,4 +47,5 @@ def portal_globals(request):
         'portal_user_display_name': user_display_name,
         'portal_user_initials': user_initials,
         'portal_user_profile': profile,
+        'portal_use_sidebar_nav': use_sidebar_nav,
     }
