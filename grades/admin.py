@@ -4,7 +4,7 @@ from django.contrib.auth.models import User
 from django import forms
 from django.utils import timezone
 from .forms import CLASS_CHOICES
-from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile, ClassPromotionRequest, ResultPublication
+from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile, ClassPromotionRequest, ResultPublication, Announcement
 
 admin.site.index_template = 'admin/portal_index.html'
 
@@ -121,6 +121,20 @@ class ResultPublicationAdmin(admin.ModelAdmin):
         if not obj.is_results_approved:
             obj.approved_by = None
             obj.approved_at = None
+        super().save_model(request, obj, form, change)
+
+
+@admin.register(Announcement)
+class AnnouncementAdmin(admin.ModelAdmin):
+    list_display = ['title', 'audience', 'is_active', 'created_by', 'created_at']
+    list_filter = ['audience', 'is_active', 'created_at']
+    search_fields = ['title', 'body', 'created_by__username']
+    filter_horizontal = ('target_users',)
+    readonly_fields = ['created_at', 'updated_at']
+
+    def save_model(self, request, obj, form, change):
+        if not obj.created_by:
+            obj.created_by = request.user
         super().save_model(request, obj, form, change)
 
 

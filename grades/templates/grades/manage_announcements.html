@@ -1,0 +1,78 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="dashboard-shell">
+    <div class="dashboard-card">
+        <div class="release-header">
+            <div>
+                <h2>Announcements</h2>
+                <p class="helper-text">Publish notices to everyone, staff groups, students, classes, or named people.</p>
+            </div>
+            <a class="button button-secondary" href="{% url 'admin_dashboard' %}">Back to Dashboard</a>
+        </div>
+
+        <form method="post" class="teacher-form-card" novalidate>
+            {% csrf_token %}
+            {{ form.non_field_errors }}
+            <div class="field-row">
+                {{ form.title.label_tag }}
+                {{ form.title }}
+                {% for error in form.title.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="field-row">
+                {{ form.body.label_tag }}
+                {{ form.body }}
+                {% for error in form.body.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="field-row">
+                {{ form.audience.label_tag }}
+                {{ form.audience }}
+                {% for error in form.audience.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="field-row">
+                {{ form.target_classes.label_tag }}
+                {{ form.target_classes }}
+                {% for error in form.target_classes.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="field-row">
+                {{ form.target_users.label_tag }}
+                {{ form.target_users }}
+                {% for error in form.target_users.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+            </div>
+            <div class="field-row checkbox-row">
+                {{ form.is_active }}
+                {{ form.is_active.label_tag }}
+                {% for error in form.is_active.errors %}<div class="field-error">{{ error }}</div>{% endfor %}
+            </div>
+            <button type="submit" class="button button-primary">Publish Announcement</button>
+        </form>
+    </div>
+
+    <div class="dashboard-card">
+        <h3>Recent Announcements</h3>
+        {% if announcements %}
+            <div class="announcement-list">
+                {% for announcement in announcements %}
+                    <article class="announcement-item">
+                        <div>
+                            <strong>{{ announcement.title }}</strong>
+                            <span class="table-muted">{{ announcement.get_audience_display }} · {{ announcement.created_at|date:'M j, Y H:i' }}</span>
+                        </div>
+                        <p>{{ announcement.body }}</p>
+                        {% if announcement.target_classes %}
+                            <span class="announcement-pill">Classes: {{ announcement.target_classes|join:', ' }}</span>
+                        {% endif %}
+                        {% if announcement.target_users.all %}
+                            <span class="announcement-pill">Individuals: {{ announcement.target_users.all|join:', ' }}</span>
+                        {% endif %}
+                        {% if not announcement.is_active %}
+                            <span class="announcement-pill">Inactive</span>
+                        {% endif %}
+                    </article>
+                {% endfor %}
+            </div>
+        {% else %}
+            <p class="empty-state">No announcements have been published yet.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

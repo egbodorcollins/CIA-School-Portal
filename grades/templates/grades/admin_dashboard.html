@@ -32,11 +32,13 @@
     </div>
 </div>
 
+{% include 'grades/_announcements_panel.html' %}
+
 <div class="portal-grid portal-grid--secondary">
     <section class="portal-panel">
         <div class="portal-panel-header">
             <h3>Recent activity</h3>
-            <a href="#">New announcement</a>
+            <a href="{% url 'manage_announcements' %}">New announcement</a>
         </div>
         {% if recent_activities %}
             <ul class="portal-list">

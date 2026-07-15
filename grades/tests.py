@@ -7,7 +7,7 @@ from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
-from .models import BehavioralGrade, ClassPromotionRequest, Grade, Profile, ResultPublication, Student, Subject, TermSetting
+from .models import Announcement, BehavioralGrade, ClassPromotionRequest, Grade, Profile, ResultPublication, Student, Subject, TermSetting
 from .views import _head_teacher_comment, _session_summary_for_student
 
 
@@ -317,6 +317,76 @@ class PortalRenderingTests(TestCase):
         response = self.client.get(reverse('result_publications'))
 
         self.assertEqual(response.status_code, 302)
+
+    def test_admin_can_publish_class_announcement(self):
+        admin_user = User.objects.create_user(username='portaladmin', password='pass12345')
+        admin_user.profile.role = Profile.ROLE_ADMIN
+        admin_user.profile.save()
+        self.client.login(username='portaladmin', password='pass12345')
+
+        response = self.client.post(reverse('manage_announcements'), {
+            'title': 'Basic 5 PTA Meeting',
+            'body': 'Parents and students should prepare for the meeting.',
+            'audience': Announcement.AUDIENCE_CLASSES,
+            'target_classes': ['Basic 5'],
+            'is_active': 'on',
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        announcement = Announcement.objects.get(title='Basic 5 PTA Meeting')
+        self.assertEqual(announcement.created_by, admin_user)
+        self.assertEqual(announcement.target_classes, ['Basic 5'])
+        self.assertContains(response, 'Announcement published successfully')
+
+    def test_class_announcement_is_visible_only_to_target_class_student(self):
+        target_user = User.objects.create_user(username='CIA/B52026/0001', password='pass12345')
+        target_user.profile.role = Profile.ROLE_STUDENT
+        target_user.profile.save()
+        other_user = User.objects.create_user(username='CIA/B42026/0001', password='pass12345')
+        other_user.profile.role = Profile.ROLE_STUDENT
+        other_user.profile.save()
+        Student.objects.create(student_id='CIA/B52026/0001', first_name='Ada', last_name='King', class_name='Basic 5')
+        Student.objects.create(student_id='CIA/B42026/0001', first_name='Ben', last_name='Stone', class_name='Basic 4')
+        Announcement.objects.create(
+            title='Basic 5 Only',
+            body='This is for Basic 5.',
+            audience=Announcement.AUDIENCE_CLASSES,
+            target_classes=['Basic 5'],
+        )
+
+        self.client.login(username='CIA/B52026/0001', password='pass12345')
+        response = self.client.get(reverse('student_dashboard'))
+        self.assertContains(response, 'Basic 5 Only')
+
+        self.client.logout()
+        self.client.login(username='CIA/B42026/0001', password='pass12345')
+        response = self.client.get(reverse('student_dashboard'))
+        self.assertNotContains(response, 'Basic 5 Only')
+
+    def test_individual_announcement_is_visible_to_named_user(self):
+        teacher = User.objects.create_user(username='teacherone', password='pass12345')
+        teacher.profile.role = Profile.ROLE_CLASS_TEACHER
+        teacher.profile.assigned_class = 'Basic 5'
+        teacher.profile.save()
+        other_teacher = User.objects.create_user(username='teachertwo', password='pass12345')
+        other_teacher.profile.role = Profile.ROLE_CLASS_TEACHER
+        other_teacher.profile.assigned_class = 'Basic 4'
+        other_teacher.profile.save()
+        announcement = Announcement.objects.create(
+            title='Private Staff Notice',
+            body='For one teacher.',
+            audience=Announcement.AUDIENCE_INDIVIDUALS,
+        )
+        announcement.target_users.add(teacher)
+
+        self.client.login(username='teacherone', password='pass12345')
+        response = self.client.get(reverse('teacher_dashboard'))
+        self.assertContains(response, 'Private Staff Notice')
+
+        self.client.logout()
+        self.client.login(username='teachertwo', password='pass12345')
+        response = self.client.get(reverse('teacher_dashboard'))
+        self.assertNotContains(response, 'Private Staff Notice')
 
     def test_password_change_page_renders(self):
         self.client.login(username='teacher', password='pass12345')
@@ -915,6 +985,45 @@ class StaffResultsTests(TestCase):
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertTrue(response.content.startswith(b'%PDF'))
         self.assertIn('CIA-B52026-0001_2025-2026_session_staff_report.pdf', response['Content-Disposition'])
+
+    def test_session_summary_entry_adds_only_missing_term_totals(self):
+        second_term_math = Subject.objects.create(code='MAT B52', name='Mathematics')
+        self.client.login(username='portaladmin', password='pass12345')
+
+        response = self.client.post(reverse('session_summary_entry', args=[self.basic5_student.pk]), {
+            'academic_year': '2025/2026',
+            f'total_{second_term_math.pk}_second_term': '88',
+        }, follow=True)
+
+        self.assertEqual(response.status_code, 200)
+        first_term_grade = Grade.objects.get(
+            student=self.basic5_student,
+            subject=self.math,
+            academic_year='2025/2026',
+            term='first_term',
+        )
+        second_term_grade = Grade.objects.get(
+            student=self.basic5_student,
+            subject=second_term_math,
+            academic_year='2025/2026',
+            term='second_term',
+        )
+        self.assertEqual(first_term_grade.marks, 80)
+        self.assertEqual(second_term_grade.marks, 88)
+        self.assertEqual(second_term_grade.homework, 0)
+        self.assertEqual(second_term_grade.exam, 88)
+
+    def test_session_summary_entry_locks_existing_term_totals(self):
+        self.client.login(username='portaladmin', password='pass12345')
+
+        response = self.client.get(reverse('session_summary_entry', args=[self.basic5_student.pk]), {
+            'academic_year': '2025/2026',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Locked')
+        self.assertContains(response, 'Mathematics')
+        self.assertNotContains(response, f'name="total_{self.math.pk}_first_term"')
 
     def test_session_summary_groups_term_subject_variants_under_main_subject(self):
         student = Student.objects.create(

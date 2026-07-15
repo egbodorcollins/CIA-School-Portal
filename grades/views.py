@@ -30,6 +30,7 @@ from .models import (
     TermSetting,
     Profile,
     Activity,
+    Announcement,
     Subject,
     ClassPromotionRequest,
     ResultPublication,
@@ -37,12 +38,14 @@ from .models import (
     validate_academic_year,
 )
 from django.db.models import Avg, Count, Q
+from django.db.utils import DatabaseError
 from .forms import (
     AUTO_STUDENT_PASSWORD,
     StudentSignUpForm,
     GradeEntryForm,
     BehavioralGradeEntryForm,
     TermSettingForm,
+    AnnouncementForm,
     TeacherCreationForm,
     enroll_student_in_standard_subjects,
     get_class_code,
@@ -180,8 +183,9 @@ def _subject_teacher_students(profile, subject=None):
 def _student_result_period(student, requested_year=None, requested_term=None):
     grade_periods = Grade.objects.filter(student=student).values_list('academic_year', 'term')
     behavior_periods = BehavioralGrade.objects.filter(student=student).values_list('academic_year', 'term')
+    publication_periods = ResultPublication.objects.filter(student=student).values_list('academic_year', 'term')
     periods = sorted(
-        set(grade_periods).union(set(behavior_periods)),
+        set(grade_periods).union(set(behavior_periods)).union(set(publication_periods)),
         key=lambda item: (item[0], TERM_ORDER.get(item[1], 0)),
         reverse=True,
     )
@@ -232,6 +236,129 @@ def _staff_student_queryset(user):
     if _user_can_approve_promotions(user, profile):
         return Student.objects.all()
     return Student.objects.none()
+
+
+def _visible_announcements_for_user(user, limit=6):
+    if not user or not user.is_authenticated:
+        try:
+            return list(Announcement.objects.filter(
+                is_active=True,
+                audience=Announcement.AUDIENCE_EVERYONE,
+            ).select_related('created_by')[:limit])
+        except DatabaseError:
+            return []
+
+    profile = getattr(user, 'profile', None)
+    role = profile.role if profile else None
+    if user.is_superuser or role == Profile.ROLE_ADMIN:
+        try:
+            return list(Announcement.objects.filter(is_active=True).select_related('created_by').prefetch_related('target_users')[:limit])
+        except DatabaseError:
+            return []
+
+    is_staff_user = bool(user.is_superuser or getattr(user, 'is_staff', False) or role in [
+        Profile.ROLE_ADMIN,
+        Profile.ROLE_CLASS_TEACHER,
+        Profile.ROLE_SUBJECT_TEACHER,
+    ])
+
+    try:
+        student = Student.objects.filter(student_id=user.username).first()
+    except Exception:
+        student = None
+
+    visible = []
+    try:
+        announcements = Announcement.objects.filter(is_active=True).select_related('created_by').prefetch_related('target_users')
+    except DatabaseError:
+        return []
+
+    try:
+        for announcement in announcements:
+            target_classes = announcement.target_classes or []
+            is_target_user = announcement.target_users.filter(pk=user.pk).exists()
+            is_target_class = (
+                (student and student.class_name in target_classes)
+                or (profile and profile.assigned_class in target_classes)
+            )
+
+            if announcement.audience == Announcement.AUDIENCE_EVERYONE:
+                visible.append(announcement)
+            elif announcement.audience == Announcement.AUDIENCE_STAFF and is_staff_user:
+                visible.append(announcement)
+            elif announcement.audience == Announcement.AUDIENCE_CLASS_TEACHERS and role == Profile.ROLE_CLASS_TEACHER:
+                visible.append(announcement)
+            elif announcement.audience == Announcement.AUDIENCE_SUBJECT_TEACHERS and role == Profile.ROLE_SUBJECT_TEACHER:
+                visible.append(announcement)
+            elif announcement.audience == Announcement.AUDIENCE_STUDENTS and role == Profile.ROLE_STUDENT:
+                visible.append(announcement)
+            elif announcement.audience == Announcement.AUDIENCE_CLASSES and is_target_class:
+                visible.append(announcement)
+            elif announcement.audience == Announcement.AUDIENCE_INDIVIDUALS and is_target_user:
+                visible.append(announcement)
+
+            if len(visible) >= limit:
+                break
+    except DatabaseError:
+        return []
+
+    return visible
+
+
+def _admin_announcements(limit=6):
+    try:
+        return list(Announcement.objects.filter(is_active=True).select_related('created_by')[:limit])
+    except DatabaseError:
+        return []
+
+
+def _term_subject_for_family(class_code, abbr, term):
+    term_digit = TERM_DIGITS.get(term)
+    if not term_digit:
+        return None
+    return Subject.objects.filter(code=f'{abbr} {class_code}{term_digit}').first()
+
+
+def _session_entry_rows(student, academic_year):
+    class_code = get_class_code(student.class_name)
+    if not class_code or class_code not in STANDARD_SUBJECTS:
+        return []
+
+    academic_terms = ['first_term', 'second_term', 'third_term']
+    rows = []
+    for abbr, subject_name in STANDARD_SUBJECTS[class_code]:
+        terms = {}
+        marks = []
+        for term in academic_terms:
+            subject = _term_subject_for_family(class_code, abbr, term)
+            grade = None
+            if subject:
+                grade = Grade.objects.filter(
+                    student=student,
+                    subject=subject,
+                    academic_year=academic_year,
+                    term=term,
+                ).first()
+            value = grade.marks if grade else None
+            if value is not None:
+                marks.append(value)
+            terms[term] = {
+                'subject': subject,
+                'grade': grade,
+                'value': value,
+                'is_locked': grade is not None,
+                'input_name': f'total_{subject.pk}_{term}' if subject and grade is None else '',
+            }
+
+        average = (sum(marks) / len(marks)) if marks else None
+        rows.append({
+            'abbr': abbr,
+            'subject': subject_name,
+            'terms': terms,
+            'average': average,
+            'letter': _average_letter_grade(average or 0),
+        })
+    return rows
 
 
 def _class_options():
@@ -287,6 +414,7 @@ def _admin_dashboard_context():
         .annotate(student_count=Count('id'))
         .order_by('class_name'),
         'recent_activities': Activity.objects.select_related('actor', 'target_student', 'target_subject')[:10],
+        'announcements': _admin_announcements(),
     }
 
 
@@ -336,6 +464,7 @@ def home(request):
 
     return render(request, 'grades/home.html', {
         'recent_activities': recent_activities,
+        'announcements': _visible_announcements_for_user(request.user),
     })
 
 
@@ -485,6 +614,28 @@ def admin_dashboard(request):
 
 
 @login_required
+@admin_required
+def manage_announcements(request):
+    if request.method == 'POST':
+        form = AnnouncementForm(request.POST)
+        if form.is_valid():
+            announcement = form.save(commit=False)
+            announcement.created_by = request.user
+            announcement.save()
+            form.save_m2m()
+            messages.success(request, 'Announcement published successfully.')
+            return redirect('manage_announcements')
+    else:
+        form = AnnouncementForm()
+
+    announcements = Announcement.objects.select_related('created_by').prefetch_related('target_users')[:30]
+    return render(request, 'grades/manage_announcements.html', {
+        'form': form,
+        'announcements': announcements,
+    })
+
+
+@login_required
 def teacher_dashboard(request):
     profile = getattr(request.user, 'profile', None)
 
@@ -545,6 +696,7 @@ def teacher_dashboard(request):
         'subject_rosters': subject_rosters,
         'can_request_promotion': profile.role == Profile.ROLE_CLASS_TEACHER or _user_can_approve_promotions(request.user, profile),
         'can_manage_result_publications': _user_can_approve_promotions(request.user, profile),
+        'announcements': _visible_announcements_for_user(request.user),
     })
 
 
@@ -756,6 +908,83 @@ def staff_results(request):
         'student_count': len(rows),
         'profile': profile,
         'query_string': urlencode(query),
+    })
+
+
+@login_required
+@class_teacher_or_admin_required
+def session_summary_entry(request, student_pk):
+    current_academic_year, _current_term = _current_period()
+    selected_academic_year = request.GET.get('academic_year') or request.POST.get('academic_year') or current_academic_year
+    try:
+        validate_academic_year(selected_academic_year)
+    except ValidationError:
+        selected_academic_year = current_academic_year
+
+    student = get_object_or_404(_staff_student_queryset(request.user), pk=student_pk)
+    term_labels = dict(TERM_CHOICES)
+    rows = _session_entry_rows(student, selected_academic_year)
+
+    if request.method == 'POST':
+        created_count = 0
+        errors = []
+        valid_input_names = {
+            term_data['input_name']: (row['subject'], term, term_data['subject'])
+            for row in rows
+            for term, term_data in row['terms'].items()
+            if term_data['input_name']
+        }
+
+        with transaction.atomic():
+            for field_name, raw_value in request.POST.items():
+                if field_name not in valid_input_names:
+                    continue
+                raw_value = (raw_value or '').strip()
+                if raw_value == '':
+                    continue
+                subject_label, term, subject = valid_input_names[field_name]
+                try:
+                    total = float(raw_value)
+                except ValueError:
+                    errors.append(f'{subject_label} {term_labels.get(term, term)} must be a number.')
+                    continue
+                if total < 0 or total > 100:
+                    errors.append(f'{subject_label} {term_labels.get(term, term)} must be between 0 and 100.')
+                    continue
+
+                _grade, created = Grade.objects.get_or_create(
+                    student=student,
+                    subject=subject,
+                    academic_year=selected_academic_year,
+                    term=term,
+                    defaults={
+                        'homework': 0,
+                        'class_work': 0,
+                        'project': 0,
+                        'first_test': 0,
+                        'midterm_test': 0,
+                        'exam': total,
+                        'remarks': 'Total entered from session summary for a missing term result.',
+                    },
+                )
+                if created:
+                    created_count += 1
+
+        for error in errors:
+            messages.error(request, error)
+        if created_count:
+            messages.success(request, f'Added {created_count} missing term total(s) to the session summary.')
+        elif not errors:
+            messages.info(request, 'No missing term totals were entered.')
+
+        return redirect(f"{reverse('session_summary_entry', args=[student.pk])}?academic_year={selected_academic_year}")
+
+    return render(request, 'grades/session_summary_entry.html', {
+        'student': student,
+        'rows': rows,
+        'selected_academic_year': selected_academic_year,
+        'term_labels': term_labels,
+        'academic_terms': ['first_term', 'second_term', 'third_term'],
     })
 
 
@@ -1468,6 +1697,7 @@ def student_dashboard(request):
     student = None
     grades = []
     behavioral_grades = []
+    session_summary = None
     result_access_allowed = False
     publication = None
     selected_academic_year = request.GET.get('academic_year')
@@ -1484,16 +1714,19 @@ def student_dashboard(request):
         publication = _result_publication_for(student, selected_academic_year, selected_term)
         result_access_allowed = _result_access_allowed(student, selected_academic_year, selected_term)
         if result_access_allowed:
-            grades = Grade.objects.filter(
-                student=student,
-                academic_year=selected_academic_year,
-                term=selected_term,
-            ).select_related('subject').order_by('subject__name')
-            behavioral_grades = BehavioralGrade.objects.filter(
-                student=student,
-                academic_year=selected_academic_year,
-                term=selected_term,
-            ).order_by('-term')
+            if selected_term == 'session':
+                session_summary = _session_summary_for_student(student, selected_academic_year)
+            else:
+                grades = Grade.objects.filter(
+                    student=student,
+                    academic_year=selected_academic_year,
+                    term=selected_term,
+                ).select_related('subject').order_by('subject__name')
+                behavioral_grades = BehavioralGrade.objects.filter(
+                    student=student,
+                    academic_year=selected_academic_year,
+                    term=selected_term,
+                ).order_by('-term')
         else:
             messages.info(
                 request,
@@ -1506,6 +1739,7 @@ def student_dashboard(request):
         'student': student,
         'grades': grades,
         'behavioral_grades': behavioral_grades,
+        'session_summary': session_summary,
         'selected_academic_year': selected_academic_year,
         'selected_term': selected_term,
         'selected_term_display': _term_display(selected_term) if selected_term else '',
@@ -1513,6 +1747,7 @@ def student_dashboard(request):
         'term_options': term_options,
         'result_access_allowed': result_access_allowed,
         'publication': publication,
+        'announcements': _visible_announcements_for_user(request.user),
     })
 
 
