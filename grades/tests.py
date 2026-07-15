@@ -8,7 +8,7 @@ from django.urls import reverse
 
 from .forms import AUTO_STUDENT_PASSWORD, StudentSignUpForm, generate_student_id
 from .models import BehavioralGrade, ClassPromotionRequest, Grade, Profile, ResultPublication, Student, Subject, TermSetting
-from .views import _head_teacher_comment
+from .views import _head_teacher_comment, _session_summary_for_student
 
 
 class LoginTests(TestCase):
@@ -639,6 +639,43 @@ class PortalRenderingTests(TestCase):
         self.assertContains(response, 'value="9.0"')
         self.assertContains(response, 'value="50.0"')
 
+    def test_class_teacher_sees_active_term_subjects_after_term_change(self):
+        TermSetting.objects.create(current_academic_year='2025/2026', current_term='second_term')
+        first_term_math = Subject.objects.create(code='MAT B51', name='Mathematics')
+        second_term_math = Subject.objects.create(code='MAT B52', name='Mathematics')
+        Subject.objects.create(code='ENG B52', name='English Studies')
+        ada = Student.objects.create(student_id='CIA/B52026/0001', first_name='Ada', last_name='King', class_name='Basic 5')
+        ada.subjects.add(first_term_math)
+        class_teacher = User.objects.create_user(username='basic5teacher', password='pass12345')
+        class_teacher.profile.role = Profile.ROLE_CLASS_TEACHER
+        class_teacher.profile.assigned_class = 'Basic 5'
+        class_teacher.profile.save()
+        self.client.login(username='basic5teacher', password='pass12345')
+
+        response = self.client.get(reverse('enter_academic_scores'), {'student': ada.pk})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(second_term_math, list(response.context['subject_options']))
+        self.assertContains(response, 'MAT B52')
+
+    def test_subject_teacher_assignment_follows_active_term_subject_variant(self):
+        TermSetting.objects.create(current_academic_year='2025/2026', current_term='second_term')
+        first_term_math = Subject.objects.create(code='MAT B51', name='Mathematics')
+        second_term_math = Subject.objects.create(code='MAT B52', name='Mathematics')
+        ada = Student.objects.create(student_id='CIA/B52026/0001', first_name='Ada', last_name='King', class_name='Basic 5')
+        subject_teacher = User.objects.create_user(username='mathteacher', password='pass12345')
+        subject_teacher.profile.role = Profile.ROLE_SUBJECT_TEACHER
+        subject_teacher.profile.save()
+        subject_teacher.profile.assigned_subjects.add(first_term_math)
+        self.client.login(username='mathteacher', password='pass12345')
+
+        response = self.client.get(reverse('enter_academic_scores'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.context['selected_subject'], second_term_math)
+        self.assertContains(response, 'Ada King')
+        self.assertContains(response, 'MAT B52')
+
     def test_subject_teacher_analytics_uses_subject_scope(self):
         TermSetting.objects.create(current_term='first_term')
         math = Subject.objects.create(code='MAT B51', name='Mathematics')
@@ -878,6 +915,42 @@ class StaffResultsTests(TestCase):
         self.assertEqual(response['Content-Type'], 'application/pdf')
         self.assertTrue(response.content.startswith(b'%PDF'))
         self.assertIn('CIA-B52026-0001_2025-2026_session_staff_report.pdf', response['Content-Disposition'])
+
+    def test_session_summary_groups_term_subject_variants_under_main_subject(self):
+        student = Student.objects.create(
+            student_id='CIA/B42026/0002',
+            first_name='Mira',
+            last_name='Stone',
+            class_name='Basic 4',
+        )
+        math_first = Subject.objects.create(code='MAT B41', name='Mathematics')
+        math_second = Subject.objects.create(code='MAT B42', name='Mathematics')
+        math_third = Subject.objects.create(code='MAT B43', name='Mathematics')
+        for subject, term, exam in [
+            (math_first, 'first_term', 40),
+            (math_second, 'second_term', 45),
+            (math_third, 'third_term', 50),
+        ]:
+            Grade.objects.create(
+                student=student,
+                subject=subject,
+                academic_year='2025/2026',
+                term=term,
+                homework=5,
+                class_work=10,
+                project=5,
+                first_test=10,
+                midterm_test=10,
+                exam=exam,
+            )
+
+        summary = _session_summary_for_student(student, '2025/2026')
+
+        self.assertEqual(summary['subject_count'], 1)
+        self.assertEqual(summary['rows'][0]['subject'], 'Mathematics')
+        self.assertEqual(summary['rows'][0]['first_term'], 80)
+        self.assertEqual(summary['rows'][0]['second_term'], 85)
+        self.assertEqual(summary['rows'][0]['third_term'], 90)
 
 
 class PromoteClassTests(TestCase):

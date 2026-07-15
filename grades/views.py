@@ -1,5 +1,6 @@
 from io import BytesIO
 import os
+import re
 from urllib.parse import urlencode
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -46,7 +47,7 @@ from .forms import (
     enroll_student_in_standard_subjects,
     get_class_code,
 )
-from .subject_map import CLASS_PROGRESSION
+from .subject_map import CLASS_NAME_BY_CODE, CLASS_PROGRESSION, STANDARD_SUBJECTS
 from django.forms import HiddenInput
 
 
@@ -71,6 +72,8 @@ def _user_can_approve_promotions(user, profile=None):
 
 
 TERM_ORDER = {'first_term': 1, 'second_term': 2, 'third_term': 3, 'session': 4}
+TERM_DIGITS = {'first_term': '1', 'second_term': '2', 'third_term': '3'}
+SUBJECT_CODE_RE = re.compile(r'^(?P<abbr>[A-Z]+)\s+(?P<class_code>[A-Z]+\d?)(?P<term>[123S])$', re.IGNORECASE)
 
 
 def _term_display(term):
@@ -81,20 +84,97 @@ def _current_period():
     return TermSetting.get_current_period()
 
 
-def _subject_teacher_subjects(profile):
+def _subject_code_parts(subject):
+    match = SUBJECT_CODE_RE.match((subject.code or '').strip())
+    if not match:
+        return None
+    return (
+        match.group('abbr').upper(),
+        match.group('class_code').upper(),
+        match.group('term').upper(),
+    )
+
+
+def _subject_family_key(subject):
+    parts = _subject_code_parts(subject)
+    if parts:
+        abbr, class_code, _term_digit = parts
+        return f'{abbr}:{class_code}'
+    return f'name:{(subject.name or subject.code).strip().lower()}'
+
+
+def _subject_codes_for_class_term(class_name, term):
+    class_code = get_class_code(class_name)
+    term_digit = TERM_DIGITS.get(term)
+    if not class_code or not term_digit:
+        return []
+    return [
+        f'{abbr} {class_code}{term_digit}'
+        for abbr, _name in STANDARD_SUBJECTS.get(class_code, [])
+    ]
+
+
+def _term_subjects_for_student(student, term):
+    codes = _subject_codes_for_class_term(student.class_name, term)
+    if codes:
+        subjects = Subject.objects.filter(code__in=codes).order_by('name', 'code')
+        if subjects.exists():
+            return subjects
+
+    parts = get_class_code(student.class_name)
+    term_digit = TERM_DIGITS.get(term)
+    if parts and term_digit:
+        fallback = student.subjects.filter(code__endswith=f'{parts}{term_digit}').order_by('name', 'code')
+        if fallback.exists():
+            return fallback
+    return student.subjects.all().order_by('name', 'code')
+
+
+def _resolve_subject_for_term(subject, term):
+    parts = _subject_code_parts(subject)
+    term_digit = TERM_DIGITS.get(term)
+    if not parts or not term_digit:
+        return subject
+    abbr, class_code, _old_term_digit = parts
+    return Subject.objects.filter(code=f'{abbr} {class_code}{term_digit}').first() or subject
+
+
+def _subject_teacher_subjects(profile, term=None):
     if not profile or profile.role != Profile.ROLE_SUBJECT_TEACHER:
         return Subject.objects.none()
-    return profile.assigned_subjects.all().order_by('name', 'code')
+
+    assigned_subjects = profile.assigned_subjects.all()
+    if not term or term == 'session':
+        return assigned_subjects.order_by('name', 'code')
+
+    subject_ids = []
+    seen_ids = set()
+    for subject in assigned_subjects:
+        resolved_subject = _resolve_subject_for_term(subject, term)
+        if resolved_subject.pk not in seen_ids:
+            subject_ids.append(resolved_subject.pk)
+            seen_ids.add(resolved_subject.pk)
+    return Subject.objects.filter(pk__in=subject_ids).order_by('name', 'code')
 
 
 def _subject_teacher_students(profile, subject=None):
-    assigned_subjects = _subject_teacher_subjects(profile)
+    assigned_subjects = _subject_teacher_subjects(profile, TermSetting.get_current_term())
     subjects = Subject.objects.filter(pk=subject.pk) if subject else assigned_subjects
-    return (
-        Student.objects.filter(subjects__in=subjects)
-        .distinct()
-        .order_by('last_name', 'first_name')
-    )
+    subject_list = list(subjects)
+
+    class_names = []
+    for subject_obj in subject_list:
+        parts = _subject_code_parts(subject_obj)
+        if parts:
+            _abbr, class_code, _term_digit = parts
+            class_name = CLASS_NAME_BY_CODE.get(class_code)
+            if class_name and class_name not in class_names:
+                class_names.append(class_name)
+
+    if class_names:
+        return Student.objects.filter(class_name__in=class_names).order_by('last_name', 'first_name')
+
+    return Student.objects.filter(subjects__in=subject_list).distinct().order_by('last_name', 'first_name')
 
 
 def _student_result_period(student, requested_year=None, requested_term=None):
@@ -446,7 +526,7 @@ def teacher_dashboard(request):
     elif profile.role == 'class_teacher':
         students = Student.objects.filter(class_name=profile.assigned_class).order_by('last_name')
     elif profile.role == 'subject_teacher':
-        assigned_subjects = _subject_teacher_subjects(profile)
+        assigned_subjects = _subject_teacher_subjects(profile, _current_period()[1])
         students = _subject_teacher_students(profile)
         for subject in assigned_subjects:
             subject_rosters.append({
@@ -694,7 +774,7 @@ def class_analytics(request):
     selected_subject = None
 
     if is_subject_analytics:
-        subject_options = list(_subject_teacher_subjects(profile))
+        subject_options = list(_subject_teacher_subjects(profile, current_term))
         requested_subject = request.GET.get('subject')
         if requested_subject:
             selected_subject = next((subject for subject in subject_options if str(subject.pk) == requested_subject), None)
@@ -725,7 +805,6 @@ def class_analytics(request):
         if selected_subject:
             all_grades = Grade.objects.filter(
                 subject=selected_subject,
-                student__subjects=selected_subject,
             ).select_related('student', 'subject')
             current_grades = all_grades.filter(academic_year=current_academic_year, term=current_term)
             subject_students = _subject_teacher_students(profile, selected_subject)
@@ -844,11 +923,14 @@ def set_current_term(request):
 def enter_academic_scores(request):
     current_academic_year, current_term = _current_period()
     profile = getattr(request.user, 'profile', None)
-    assigned_subjects = _subject_teacher_subjects(profile)
+    assigned_subjects = _subject_teacher_subjects(profile, current_term)
     subject_pk = request.GET.get('subject') or request.POST.get('subject')
     selected_subject = None
+    requested_subject = Subject.objects.filter(pk=subject_pk).first() if subject_pk else None
+    if requested_subject:
+        requested_subject = _resolve_subject_for_term(requested_subject, current_term)
     if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
-        selected_subject = assigned_subjects.filter(pk=subject_pk).first() if subject_pk else assigned_subjects.first()
+        selected_subject = assigned_subjects.filter(pk=requested_subject.pk).first() if requested_subject else assigned_subjects.first()
 
     # Prepare students available for selection based on user's role
     if profile and profile.role == Profile.ROLE_ADMIN:
@@ -871,27 +953,18 @@ def enter_academic_scores(request):
     subject_options = Subject.objects.none()
 
     if selected_student:
-        try:
-            term_map = {'first_term': '1', 'second_term': '2', 'third_term': '3'}
-            term_digit = term_map.get(current_term, '1')
-            class_code = get_class_code(selected_student.class_name)
-            if class_code:
-                subject_options = selected_student.subjects.filter(code__endswith=f"{class_code}{term_digit}")
-            else:
-                subject_options = selected_student.subjects.all()
-        except Exception:
-            subject_options = selected_student.subjects.all()
+        subject_options = _term_subjects_for_student(selected_student, current_term)
 
         if profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
             subject_options = subject_options.filter(pk__in=assigned_subjects)
 
-        if subject_pk:
-            selected_subject = subject_options.filter(pk=subject_pk).first()
+        if requested_subject:
+            selected_subject = subject_options.filter(pk=requested_subject.pk).first()
         elif profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
             selected_subject = subject_options.filter(pk=selected_subject.pk).first() if selected_subject else subject_options.first()
     elif profile and profile.role == Profile.ROLE_SUBJECT_TEACHER:
         subject_options = assigned_subjects
-        selected_subject = assigned_subjects.filter(pk=subject_pk).first() if subject_pk else assigned_subjects.first()
+        selected_subject = assigned_subjects.filter(pk=requested_subject.pk).first() if requested_subject else assigned_subjects.first()
 
     existing_grade = None
     if selected_student and selected_subject:
@@ -1526,7 +1599,7 @@ def _session_summary_for_student(student, academic_year):
 
     subject_rows = {}
     for grade in grades:
-        key = grade.subject_id
+        key = _subject_family_key(grade.subject)
         if key not in subject_rows:
             subject_rows[key] = {
                 'subject': grade.subject.name,
