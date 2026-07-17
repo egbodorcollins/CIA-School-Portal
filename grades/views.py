@@ -1883,6 +1883,40 @@ def _resolve_logo_path():
             return path
     return None
 
+def _render_single_page_pdf(draw_content, min_scale=0.55, bottom_buffer=6 * mm):
+    """Render draw_content(cv) onto a single A4 page, auto-scaling down
+    uniformly if the content would overflow the bottom margin."""
+    width, height = A4
+    margin = 18 * mm
+
+    probe_buf = BytesIO()
+    probe_cv = canvas.Canvas(probe_buf, pagesize=A4)
+    final_y = draw_content(probe_cv)
+
+    needed_bottom = margin + bottom_buffer
+    scale = 1.0
+    if final_y < needed_bottom:
+        content_height = (height - margin) - final_y
+        available_height = (height - margin) - needed_bottom
+        if content_height > 0:
+            scale = max(min_scale, available_height / content_height)
+
+    buf = BytesIO()
+    cv = canvas.Canvas(buf, pagesize=A4)
+    if scale < 1.0:
+        anchor_x, anchor_y = width / 2, height - margin
+        cv.saveState()
+        cv.translate(anchor_x, anchor_y)
+        cv.scale(scale, scale)
+        cv.translate(-anchor_x, -anchor_y)
+        draw_content(cv)
+        cv.restoreState()
+    else:
+        draw_content(cv)
+
+    cv.showPage()
+    cv.save()
+    return buf.getvalue()
 
 def build_report_card(
     *,
@@ -1903,282 +1937,280 @@ def build_report_card(
     teacher_comment='',
     head_comment='',
 ):
-    buf = BytesIO()
-    cv = canvas.Canvas(buf, pagesize=A4)
+    
+    def _draw(cv):
+        width, height = A4
+        margin = 18 * mm
+        content_width = width - 2 * margin
+        y = height - margin
 
-    width, height = A4
-    margin = 18 * mm
-    content_width = width - 2 * margin
-    y = height - margin
+        band_h  = 32 * mm
+        logo_sz = 30 * mm   # logo drawn as a square inside the header
 
-    band_h  = 32 * mm
-    logo_sz = 30 * mm   # logo drawn as a square inside the header
+        _rounded_rect(cv, margin, y - band_h, content_width, band_h, 6, fill=_RED)
 
-    _rounded_rect(cv, margin, y - band_h, content_width, band_h, 6, fill=_RED)
+        # ── Logo (left side of header) ────────────────────────────────────────────
+        logo_drawn = False
+        logo_path = _resolve_logo_path()
+        if logo_path:
+            try:
+                logo_x = margin + 4 * mm
+                logo_y = y - band_h + (band_h - logo_sz) / 2   # vertically centred
+                # # White circle behind logo so it pops on the red background
+                # cv.setFillColor(_WHITE)
+                # cv.circle(logo_x + logo_sz / 2, logo_y + logo_sz / 2,
+                #           logo_sz / 4 + 1.5 * mm, fill=1, stroke=0)
+                cv.drawImage(
+                    logo_path, logo_x, logo_y,
+                    width=logo_sz, height=logo_sz,
+                    preserveAspectRatio=True, mask='auto',
+                )
+                logo_drawn = True
+            except Exception:
+                logo_drawn = False   # graceful fallback: text stays centred
 
-    # ── Logo (left side of header) ────────────────────────────────────────────
-    logo_drawn = False
-    logo_path = _resolve_logo_path()
-    if logo_path:
-        try:
-            logo_x = margin + 4 * mm
-            logo_y = y - band_h + (band_h - logo_sz) / 2   # vertically centred
-            # # White circle behind logo so it pops on the red background
-            # cv.setFillColor(_WHITE)
-            # cv.circle(logo_x + logo_sz / 2, logo_y + logo_sz / 2,
-            #           logo_sz / 4 + 1.5 * mm, fill=1, stroke=0)
-            cv.drawImage(
-                logo_path, logo_x, logo_y,
-                width=logo_sz, height=logo_sz,
-                preserveAspectRatio=True, mask='auto',
-            )
-            logo_drawn = True
-        except Exception:
-            logo_drawn = False   # graceful fallback: text stays centred
+        # Text centred in the space to the right of the logo (or full width if no logo)
+        text_cx = (margin + logo_sz + 8 * mm + width - margin) / 2 if logo_drawn else width / 2
 
-    # Text centred in the space to the right of the logo (or full width if no logo)
-    text_cx = (margin + logo_sz + 8 * mm + width - margin) / 2 if logo_drawn else width / 2
-
-    cv.setFillColor(_WHITE)
-    cv.setFont('Helvetica-Bold', 15)
-    cv.drawCentredString(text_cx, y - 10 * mm, 'CORINASIA INTERNATIONAL ACADEMY')
-    cv.setFont('Helvetica', 8.5)
-    cv.drawCentredString(text_cx, y - 17 * mm, 'CIA - Uniqueness in All | ciaabuja@gmail.com | +234 802 3160 109')
-    cv.setFont('Helvetica-Bold', 11)
-    cv.drawCentredString(text_cx, y - 26 * mm, f'{academic_year} | {term_display.upper()} REPORT CARD')
-
-    y -= band_h + 4 * mm
-
-    info_h = 32 * mm
-    _rounded_rect(cv, margin, y - info_h, content_width, info_h, 4, fill=_LIGHT, stroke=_GREY)
-
-    row_h = 5.6 * mm
-    left_x = margin + 4 * mm
-    right_x = margin + content_width / 2 + 4 * mm
-
-    rows_left = [
-        ('NAME', student_name),
-        ('STUDENT ID', student_id),
-        ('CLASS', class_name or '-'),
-    ]
-    rows_right = [
-        ('NATIONALITY', nationality or 'Nigeria'),
-        ('STATE OF ORIGIN', state_of_origin or '-'),
-        ('CLUB / SOCIETY', club_society or '-'),
-        ('ACADEMIC YEAR', academic_year),
-    ]
-
-    def draw_info_row(x, row_y, label, value):
-        cv.setFont('Helvetica-Bold', 7)
-        cv.setFillColor(_RED)
-        cv.drawString(x, row_y, f'{label}:')
-        cv.setFont('Helvetica', 8)
-        cv.setFillColor(_DARK)
-        cv.drawString(x + 33 * mm, row_y, str(value))
-
-    base_y = y - 7 * mm
-    for index, (label, value) in enumerate(rows_left):
-        draw_info_row(left_x, base_y - index * row_h, label, value)
-    for index, (label, value) in enumerate(rows_right):
-        draw_info_row(right_x, base_y - index * row_h, label, value)
-
-    y -= info_h + 4 * mm
-
-    stat_items = [
-        ('STUDENTS IN CLASS', str(class_count), _ORANGE),
-        ('TIMES PRESENT', str(times_present), _ORANGE),
-        ('YOUR AVERAGE', f'{average_score:.1f}', _RED),
-        ('CLASS HIGHEST', f'{highest_average:.1f}', colors.HexColor('#276fbf')),
-    ]
-    box_w = content_width / len(stat_items)
-    stat_h = 14 * mm
-    for index, (label, value, color) in enumerate(stat_items):
-        box_x = margin + index * box_w
-        _rounded_rect(cv, box_x + 1.5 * mm, y - stat_h, box_w - 3 * mm, stat_h, 3, fill=color)
         cv.setFillColor(_WHITE)
         cv.setFont('Helvetica-Bold', 15)
-        cv.drawCentredString(box_x + box_w / 2, y - 8 * mm, value)
-        cv.setFont('Helvetica', 6.5)
-        cv.drawCentredString(box_x + box_w / 2, y - 12.5 * mm, label)
+        cv.drawCentredString(text_cx, y - 10 * mm, 'CORINASIA INTERNATIONAL ACADEMY')
+        cv.setFont('Helvetica', 8.5)
+        cv.drawCentredString(text_cx, y - 17 * mm, 'CIA - Uniqueness in All | ciaabuja@gmail.com | +234 802 3160 109')
+        cv.setFont('Helvetica-Bold', 11)
+        cv.drawCentredString(text_cx, y - 26 * mm, f'{academic_year} | {term_display.upper()} REPORT CARD')
 
-    y -= stat_h + 5 * mm
+        y -= band_h + 4 * mm
 
-    cv.setFont('Helvetica-Bold', 9)
-    cv.setFillColor(_DARK)
-    cv.drawString(margin, y, 'ACADEMIC PERFORMANCE')
-    y -= 3 * mm
+        info_h = 32 * mm
+        _rounded_rect(cv, margin, y - info_h, content_width, info_h, 4, fill=_LIGHT, stroke=_GREY)
 
-    header = ['SUBJECT', 'HW\n/5', 'CW\n/10', 'PRJ\n/5', '1ST\n/10', 'MID\n/10', 'EXAM\n/60', 'TOTAL\n/100', 'GRADE']
-    col_widths = [53 * mm, 12 * mm, 12 * mm, 12 * mm, 12 * mm, 12 * mm, 14 * mm, 16 * mm, 13 * mm]
+        row_h = 5.6 * mm
+        left_x = margin + 4 * mm
+        right_x = margin + content_width / 2 + 4 * mm
 
-    hw_total = cw_total = proj_total = t1_total = mid_total = exam_total = total_marks = 0
-    rows = [header]
-    for grade in grades:
-        rows.append([
-            grade['subject'],
-            f"{grade['hw']:.0f}",
-            f"{grade['cw']:.0f}",
-            f"{grade['proj']:.0f}",
-            f"{grade['t1']:.0f}",
-            f"{grade['mid']:.0f}",
-            f"{grade['exam']:.0f}",
-            f"{grade['total']:.0f}",
-            grade['letter'],
-        ])
-        hw_total += grade['hw']
-        cw_total += grade['cw']
-        proj_total += grade['proj']
-        t1_total += grade['t1']
-        mid_total += grade['mid']
-        exam_total += grade['exam']
-        total_marks += grade['total']
+        rows_left = [
+            ('NAME', student_name),
+            ('STUDENT ID', student_id),
+            ('CLASS', class_name or '-'),
+        ]
+        rows_right = [
+            ('NATIONALITY', nationality or 'Nigeria'),
+            ('STATE OF ORIGIN', state_of_origin or '-'),
+            ('CLUB / SOCIETY', club_society or '-'),
+            ('ACADEMIC YEAR', academic_year),
+        ]
 
-    rows.append([
-        'CUMULATIVE TOTAL',
-        f'{hw_total:.0f}',
-        f'{cw_total:.0f}',
-        f'{proj_total:.0f}',
-        f'{t1_total:.0f}',
-        f'{mid_total:.0f}',
-        f'{exam_total:.0f}',
-        f'{total_marks:.0f}',
-        '',
-    ])
+        def draw_info_row(x, row_y, label, value):
+            cv.setFont('Helvetica-Bold', 7)
+            cv.setFillColor(_RED)
+            cv.drawString(x, row_y, f'{label}:')
+            cv.setFont('Helvetica', 8)
+            cv.setFillColor(_DARK)
+            cv.drawString(x + 33 * mm, row_y, str(value))
 
-    table = Table(rows, colWidths=col_widths)
-    table_style = TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), _RED),
-        ('TEXTCOLOR', (0, 0), (-1, 0), _WHITE),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 7),
-        ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
-        ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -2), 8),
-        ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
-        ('ALIGN', (0, 1), (0, -1), 'LEFT'),
-        ('VALIGN', (0, 1), (-1, -1), 'MIDDLE'),
-        ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f8e8d8')),
-        ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, -1), (-1, -1), 8),
-        ('GRID', (0, 0), (-1, -1), 0.4, _GREY),
-        ('LINEBELOW', (0, 0), (-1, 0), 1.2, _RED),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -2), [_WHITE, colors.HexColor('#fdf6f0')]),
-        ('LEFTPADDING', (0, 0), (0, -1), 4),
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-    ])
-    for row_index, grade in enumerate(grades, start=1):
-        table_style.add('TEXTCOLOR', (-1, row_index), (-1, row_index), _letter_color(grade['letter']))
-        table_style.add('FONTNAME', (-1, row_index), (-1, row_index), 'Helvetica-Bold')
-        table_style.add('FONTSIZE', (-1, row_index), (-1, row_index), 9)
+        base_y = y - 7 * mm
+        for index, (label, value) in enumerate(rows_left):
+            draw_info_row(left_x, base_y - index * row_h, label, value)
+        for index, (label, value) in enumerate(rows_right):
+            draw_info_row(right_x, base_y - index * row_h, label, value)
 
-    table.setStyle(table_style)
-    _table_width, table_height = table.wrapOn(cv, content_width, height)
-    table.drawOn(cv, margin, y - table_height)
-    y -= table_height + 6 * mm
+        y -= info_h + 4 * mm
 
-    left_col_w = 82 * mm
-    right_col_w = content_width - left_col_w - 5 * mm
-    right_col_x = margin + left_col_w + 5 * mm
+        stat_items = [
+            ('STUDENTS IN CLASS', str(class_count), _ORANGE),
+            ('TIMES PRESENT', str(times_present), _ORANGE),
+            ('YOUR AVERAGE', f'{average_score:.1f}', _RED),
+            ('CLASS HIGHEST', f'{highest_average:.1f}', colors.HexColor('#276fbf')),
+        ]
+        box_w = content_width / len(stat_items)
+        stat_h = 14 * mm
+        for index, (label, value, color) in enumerate(stat_items):
+            box_x = margin + index * box_w
+            _rounded_rect(cv, box_x + 1.5 * mm, y - stat_h, box_w - 3 * mm, stat_h, 3, fill=color)
+            cv.setFillColor(_WHITE)
+            cv.setFont('Helvetica-Bold', 15)
+            cv.drawCentredString(box_x + box_w / 2, y - 8 * mm, value)
+            cv.setFont('Helvetica', 6.5)
+            cv.drawCentredString(box_x + box_w / 2, y - 12.5 * mm, label)
 
-    behavior_rows = [['BEHAVIOUR TRAIT', 'GRADE']]
-    trait_labels = [
-        ('Punctuality', 'punctuality'),
-        ('Relationship with Staff', 'relationship_with_staff'),
-        ('Politeness', 'politeness'),
-        ('Neatness', 'neatness'),
-        ('Co-operation', 'co_operation'),
-        ('Obedience', 'obedience'),
-        ('Attentiveness', 'attentiveness'),
-        ('Adjustment in School', 'adjustment_in_school'),
-        ('Relationship with Peers', 'relationship_with_peers'),
-    ]
-    for label, key in trait_labels:
-        behavior_rows.append([label, behavior.get(key, '-') if behavior else '-'])
+        y -= stat_h + 5 * mm
 
-    behavior_table = Table(behavior_rows, colWidths=[62 * mm, 20 * mm])
-    behavior_style = TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), _ORANGE),
-        ('TEXTCOLOR', (0, 0), (-1, 0), _WHITE),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 7.5),
-        ('ALIGN', (1, 0), (1, -1), 'CENTER'),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('GRID', (0, 0), (-1, -1), 0.4, _GREY),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [_WHITE, colors.HexColor('#fff8f2')]),
-        ('TOPPADDING', (0, 0), (-1, -1), 3),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
-        ('LEFTPADDING', (0, 0), (0, -1), 4),
-    ])
-    if behavior:
-        for row_index, (_label, key) in enumerate(trait_labels, start=1):
-            behavior_style.add('TEXTCOLOR', (1, row_index), (1, row_index), _letter_color(behavior.get(key, '')))
-            behavior_style.add('FONTNAME', (1, row_index), (1, row_index), 'Helvetica-Bold')
-            behavior_style.add('FONTSIZE', (1, row_index), (1, row_index), 9)
-    behavior_table.setStyle(behavior_style)
-    _behavior_width, behavior_height = behavior_table.wrapOn(cv, left_col_w, height)
-    behavior_table.drawOn(cv, margin, y - behavior_height)
-
-    key_h = 36 * mm
-    _rounded_rect(cv, right_col_x, y - key_h, right_col_w, key_h, 3, fill=_LIGHT, stroke=_GREY)
-    cv.setFont('Helvetica-Bold', 7.5)
-    cv.setFillColor(_RED)
-    cv.drawString(right_col_x + 3 * mm, y - 5 * mm, 'KEY TO RATING')
-    ratings = [
-        ('A', 'EXCELLENT', '90 - 100'),
-        ('B', 'VERY GOOD', '80 - 89'),
-        ('C', 'GOOD', '70 - 79'),
-        ('D', 'SATISFACTORY', '60 - 69'),
-        ('E', 'PASS', '50 - 59'),
-        ('F', 'FAIL', 'Below 50'),
-    ]
-    for index, (letter, description, score_range) in enumerate(ratings):
-        row_y = y - 11 * mm - index * 4.2 * mm
-        cv.setFillColor(_letter_color(letter))
-        cv.setFont('Helvetica-Bold', 7.5)
-        cv.drawString(right_col_x + 3 * mm, row_y, letter)
+        cv.setFont('Helvetica-Bold', 9)
         cv.setFillColor(_DARK)
+        cv.drawString(margin, y, 'ACADEMIC PERFORMANCE')
+        y -= 3 * mm
+
+        header = ['SUBJECT', 'HW\n/5', 'CW\n/10', 'PRJ\n/5', '1ST\n/10', 'MID\n/10', 'EXAM\n/60', 'TOTAL\n/100', 'GRADE']
+        col_widths = [53 * mm, 12 * mm, 12 * mm, 12 * mm, 12 * mm, 12 * mm, 14 * mm, 16 * mm, 13 * mm]
+
+        hw_total = cw_total = proj_total = t1_total = mid_total = exam_total = total_marks = 0
+        rows = [header]
+        for grade in grades:
+            rows.append([
+                grade['subject'],
+                f"{grade['hw']:.0f}",
+                f"{grade['cw']:.0f}",
+                f"{grade['proj']:.0f}",
+                f"{grade['t1']:.0f}",
+                f"{grade['mid']:.0f}",
+                f"{grade['exam']:.0f}",
+                f"{grade['total']:.0f}",
+                grade['letter'],
+            ])
+            hw_total += grade['hw']
+            cw_total += grade['cw']
+            proj_total += grade['proj']
+            t1_total += grade['t1']
+            mid_total += grade['mid']
+            exam_total += grade['exam']
+            total_marks += grade['total']
+
+        rows.append([
+            'CUMULATIVE TOTAL',
+            f'{hw_total:.0f}',
+            f'{cw_total:.0f}',
+            f'{proj_total:.0f}',
+            f'{t1_total:.0f}',
+            f'{mid_total:.0f}',
+            f'{exam_total:.0f}',
+            f'{total_marks:.0f}',
+            '',
+        ])
+
+        table = Table(rows, colWidths=col_widths)
+        table_style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), _RED),
+            ('TEXTCOLOR', (0, 0), (-1, 0), _WHITE),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 7),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
+            ('FONTNAME', (0, 1), (-1, -2), 'Helvetica'),
+            ('FONTSIZE', (0, 1), (-1, -2), 8),
+            ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 1), (0, -1), 'LEFT'),
+            ('VALIGN', (0, 1), (-1, -1), 'MIDDLE'),
+            ('BACKGROUND', (0, -1), (-1, -1), colors.HexColor('#f8e8d8')),
+            ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, -1), (-1, -1), 8),
+            ('GRID', (0, 0), (-1, -1), 0.4, _GREY),
+            ('LINEBELOW', (0, 0), (-1, 0), 1.2, _RED),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -2), [_WHITE, colors.HexColor('#fdf6f0')]),
+            ('LEFTPADDING', (0, 0), (0, -1), 4),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+        ])
+        for row_index, grade in enumerate(grades, start=1):
+            table_style.add('TEXTCOLOR', (-1, row_index), (-1, row_index), _letter_color(grade['letter']))
+            table_style.add('FONTNAME', (-1, row_index), (-1, row_index), 'Helvetica-Bold')
+            table_style.add('FONTSIZE', (-1, row_index), (-1, row_index), 9)
+
+        table.setStyle(table_style)
+        _table_width, table_height = table.wrapOn(cv, content_width, height)
+        table.drawOn(cv, margin, y - table_height)
+        y -= table_height + 6 * mm
+
+        left_col_w = 82 * mm
+        right_col_w = content_width - left_col_w - 5 * mm
+        right_col_x = margin + left_col_w + 5 * mm
+
+        behavior_rows = [['BEHAVIOUR TRAIT', 'GRADE']]
+        trait_labels = [
+            ('Punctuality', 'punctuality'),
+            ('Relationship with Staff', 'relationship_with_staff'),
+            ('Politeness', 'politeness'),
+            ('Neatness', 'neatness'),
+            ('Co-operation', 'co_operation'),
+            ('Obedience', 'obedience'),
+            ('Attentiveness', 'attentiveness'),
+            ('Adjustment in School', 'adjustment_in_school'),
+            ('Relationship with Peers', 'relationship_with_peers'),
+        ]
+        for label, key in trait_labels:
+            behavior_rows.append([label, behavior.get(key, '-') if behavior else '-'])
+
+        behavior_table = Table(behavior_rows, colWidths=[62 * mm, 20 * mm])
+        behavior_style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), _ORANGE),
+            ('TEXTCOLOR', (0, 0), (-1, 0), _WHITE),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 7.5),
+            ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+            ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+            ('GRID', (0, 0), (-1, -1), 0.4, _GREY),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [_WHITE, colors.HexColor('#fff8f2')]),
+            ('TOPPADDING', (0, 0), (-1, -1), 3),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+            ('LEFTPADDING', (0, 0), (0, -1), 4),
+        ])
+        if behavior:
+            for row_index, (_label, key) in enumerate(trait_labels, start=1):
+                behavior_style.add('TEXTCOLOR', (1, row_index), (1, row_index), _letter_color(behavior.get(key, '')))
+                behavior_style.add('FONTNAME', (1, row_index), (1, row_index), 'Helvetica-Bold')
+                behavior_style.add('FONTSIZE', (1, row_index), (1, row_index), 9)
+        behavior_table.setStyle(behavior_style)
+        _behavior_width, behavior_height = behavior_table.wrapOn(cv, left_col_w, height)
+        behavior_table.drawOn(cv, margin, y - behavior_height)
+
+        key_h = 36 * mm
+        _rounded_rect(cv, right_col_x, y - key_h, right_col_w, key_h, 3, fill=_LIGHT, stroke=_GREY)
+        cv.setFont('Helvetica-Bold', 7.5)
+        cv.setFillColor(_RED)
+        cv.drawString(right_col_x + 3 * mm, y - 5 * mm, 'KEY TO RATING')
+        ratings = [
+            ('A', 'EXCELLENT', '90 - 100'),
+            ('B', 'VERY GOOD', '80 - 89'),
+            ('C', 'GOOD', '70 - 79'),
+            ('D', 'SATISFACTORY', '60 - 69'),
+            ('E', 'PASS', '50 - 59'),
+            ('F', 'FAIL', 'Below 50'),
+        ]
+        for index, (letter, description, score_range) in enumerate(ratings):
+            row_y = y - 11 * mm - index * 4.2 * mm
+            cv.setFillColor(_letter_color(letter))
+            cv.setFont('Helvetica-Bold', 7.5)
+            cv.drawString(right_col_x + 3 * mm, row_y, letter)
+            cv.setFillColor(_DARK)
+            cv.setFont('Helvetica', 7.5)
+            cv.drawString(right_col_x + 9 * mm, row_y, f'= {description}')
+            cv.setFillColor(colors.HexColor('#888888'))
+            cv.drawRightString(right_col_x + right_col_w - 3 * mm, row_y, score_range)
+
+        comment_top = y - key_h - 3 * mm
+        comment_h = max(behavior_height - key_h - 3 * mm, 22 * mm)
+        _rounded_rect(cv, right_col_x, comment_top - comment_h, right_col_w, comment_h, 3, fill=_WHITE, stroke=_GREY)
+
+        cv.setFont('Helvetica-Bold', 7.5)
+        cv.setFillColor(_RED)
+        cv.drawString(right_col_x + 3 * mm, comment_top - 5 * mm, "CLASS TEACHER'S COMMENT")
         cv.setFont('Helvetica', 7.5)
-        cv.drawString(right_col_x + 9 * mm, row_y, f'= {description}')
+        cv.setFillColor(_DARK)
+        cv.drawString(right_col_x + 3 * mm, comment_top - 10.5 * mm, (teacher_comment or '').strip() or ('_' * 36))
+
+        cv.setFont('Helvetica-Bold', 7.5)
+        cv.setFillColor(_RED)
+        cv.drawString(right_col_x + 3 * mm, comment_top - 17 * mm, "HEAD TEACHER'S COMMENT")
+        cv.setFont('Helvetica', 7.5)
+        cv.setFillColor(_DARK)
+        cv.drawString(right_col_x + 3 * mm, comment_top - 22.5 * mm, (head_comment or '').strip() or ('_' * 36))
+
+        y -= max(behavior_height, key_h + comment_h + 3 * mm) + 5 * mm
+
+        cv.setStrokeColor(_GREY)
+        cv.setLineWidth(0.5)
+        cv.line(margin, y, margin + content_width, y)
+        y -= 4 * mm
+        cv.setFont('Helvetica', 7)
         cv.setFillColor(colors.HexColor('#888888'))
-        cv.drawRightString(right_col_x + right_col_w - 3 * mm, row_y, score_range)
+        cv.drawCentredString(
+            width / 2,
+            y,
+            'Official use requires the school stamp and authorised signature. This report is computer-generated for preview only.',
+        )
+        return y
 
-    comment_top = y - key_h - 3 * mm
-    comment_h = max(behavior_height - key_h - 3 * mm, 22 * mm)
-    _rounded_rect(cv, right_col_x, comment_top - comment_h, right_col_w, comment_h, 3, fill=_WHITE, stroke=_GREY)
-
-    cv.setFont('Helvetica-Bold', 7.5)
-    cv.setFillColor(_RED)
-    cv.drawString(right_col_x + 3 * mm, comment_top - 5 * mm, "CLASS TEACHER'S COMMENT")
-    cv.setFont('Helvetica', 7.5)
-    cv.setFillColor(_DARK)
-    cv.drawString(right_col_x + 3 * mm, comment_top - 10.5 * mm, (teacher_comment or '').strip() or ('_' * 36))
-
-    cv.setFont('Helvetica-Bold', 7.5)
-    cv.setFillColor(_RED)
-    cv.drawString(right_col_x + 3 * mm, comment_top - 17 * mm, "HEAD TEACHER'S COMMENT")
-    cv.setFont('Helvetica', 7.5)
-    cv.setFillColor(_DARK)
-    cv.drawString(right_col_x + 3 * mm, comment_top - 22.5 * mm, (head_comment or '').strip() or ('_' * 36))
-
-    y -= max(behavior_height, key_h + comment_h + 3 * mm) + 5 * mm
-
-    cv.setStrokeColor(_GREY)
-    cv.setLineWidth(0.5)
-    cv.line(margin, y, margin + content_width, y)
-    y -= 4 * mm
-    cv.setFont('Helvetica', 7)
-    cv.setFillColor(colors.HexColor('#888888'))
-    cv.drawCentredString(
-        width / 2,
-        y,
-        'Official use requires the school stamp and authorised signature. This report is computer-generated for preview only.',
-    )
-
-    cv.showPage()
-    cv.save()
-    return buf.getvalue()
+    return _render_single_page_pdf(_draw)
 
 
 def _term_report_pdf_bytes(student, selected_academic_year, selected_term):
@@ -2264,84 +2296,83 @@ def _term_report_pdf_bytes(student, selected_academic_year, selected_term):
 
 def build_session_summary_report(*, student, academic_year):
     summary = _session_summary_for_student(student, academic_year)
-    buf = BytesIO()
-    cv = canvas.Canvas(buf, pagesize=A4)
-    width, height = A4
-    margin = 18 * mm
-    content_width = width - 2 * margin
-    y = height - margin
 
-    _rounded_rect(cv, margin, y - 30 * mm, content_width, 30 * mm, 6, fill=_RED)
-    cv.setFillColor(_WHITE)
-    cv.setFont('Helvetica-Bold', 15)
-    cv.drawCentredString(width / 2, y - 11 * mm, 'CORINASIA INTERNATIONAL ACADEMY')
-    cv.setFont('Helvetica-Bold', 11)
-    cv.drawCentredString(width / 2, y - 22 * mm, f'{academic_year} SESSION SUMMARY RESULT')
-    y -= 36 * mm
+    def _draw(cv):
+        width, height = A4
+        margin = 18 * mm
+        content_width = width - 2 * margin
+        y = height - margin
 
-    _rounded_rect(cv, margin, y - 28 * mm, content_width, 28 * mm, 4, fill=_LIGHT, stroke=_GREY)
-    cv.setFillColor(_DARK)
-    cv.setFont('Helvetica-Bold', 8)
-    cv.drawString(margin + 4 * mm, y - 8 * mm, 'NAME:')
-    cv.drawString(margin + 4 * mm, y - 17 * mm, 'STUDENT ID:')
-    cv.drawString(margin + content_width / 2, y - 8 * mm, 'CLASS:')
-    cv.drawString(margin + content_width / 2, y - 17 * mm, 'SESSION AVERAGE:')
-    cv.setFont('Helvetica', 8)
-    cv.drawString(margin + 30 * mm, y - 8 * mm, student.full_name)
-    cv.drawString(margin + 30 * mm, y - 17 * mm, student.student_id)
-    cv.drawString(margin + content_width / 2 + 32 * mm, y - 8 * mm, student.class_name or 'Not assigned')
-    overall_text = f"{summary['overall_average']:.1f}" if summary['overall_average'] is not None else 'No scores'
-    cv.drawString(margin + content_width / 2 + 42 * mm, y - 17 * mm, overall_text)
-    y -= 36 * mm
+        _rounded_rect(cv, margin, y - 30 * mm, content_width, 30 * mm, 6, fill=_RED)
+        cv.setFillColor(_WHITE)
+        cv.setFont('Helvetica-Bold', 15)
+        cv.drawCentredString(width / 2, y - 11 * mm, 'CORINASIA INTERNATIONAL ACADEMY')
+        cv.setFont('Helvetica-Bold', 11)
+        cv.drawCentredString(width / 2, y - 22 * mm, f'{academic_year} SESSION SUMMARY RESULT')
+        y -= 36 * mm
 
-    rows = [['SUBJECT', 'FIRST TERM', 'SECOND TERM', 'THIRD TERM', 'SESSION AVG', 'GRADE']]
-    for row in summary['rows']:
-        rows.append([
-            row['subject'],
-            '-' if row['first_term'] is None else f"{row['first_term']:.0f}",
-            '-' if row['second_term'] is None else f"{row['second_term']:.0f}",
-            '-' if row['third_term'] is None else f"{row['third_term']:.0f}",
-            '-' if row['average'] is None else f"{row['average']:.1f}",
-            row['letter'],
+        _rounded_rect(cv, margin, y - 28 * mm, content_width, 28 * mm, 4, fill=_LIGHT, stroke=_GREY)
+        cv.setFillColor(_DARK)
+        cv.setFont('Helvetica-Bold', 8)
+        cv.drawString(margin + 4 * mm, y - 8 * mm, 'NAME:')
+        cv.drawString(margin + 4 * mm, y - 17 * mm, 'STUDENT ID:')
+        cv.drawString(margin + content_width / 2, y - 8 * mm, 'CLASS:')
+        cv.drawString(margin + content_width / 2, y - 17 * mm, 'SESSION AVERAGE:')
+        cv.setFont('Helvetica', 8)
+        cv.drawString(margin + 30 * mm, y - 8 * mm, student.full_name)
+        cv.drawString(margin + 30 * mm, y - 17 * mm, student.student_id)
+        cv.drawString(margin + content_width / 2 + 32 * mm, y - 8 * mm, student.class_name or 'Not assigned')
+        overall_text = f"{summary['overall_average']:.1f}" if summary['overall_average'] is not None else 'No scores'
+        cv.drawString(margin + content_width / 2 + 42 * mm, y - 17 * mm, overall_text)
+        y -= 36 * mm
+
+        rows = [['SUBJECT', 'FIRST TERM', 'SECOND TERM', 'THIRD TERM', 'SESSION AVG', 'GRADE']]
+        for row in summary['rows']:
+            rows.append([
+                row['subject'],
+                '-' if row['first_term'] is None else f"{row['first_term']:.0f}",
+                '-' if row['second_term'] is None else f"{row['second_term']:.0f}",
+                '-' if row['third_term'] is None else f"{row['third_term']:.0f}",
+                '-' if row['average'] is None else f"{row['average']:.1f}",
+                row['letter'],
+            ])
+        if len(rows) == 1:
+            rows.append(['No recorded scores for this session', '-', '-', '-', '-', '-'])
+
+        table = Table(rows, colWidths=[62 * mm, 24 * mm, 24 * mm, 24 * mm, 24 * mm, 18 * mm])
+        table_style = TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), _RED),
+            ('TEXTCOLOR', (0, 0), (-1, 0), _WHITE),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, -1), 8),
+            ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('GRID', (0, 0), (-1, -1), 0.4, _GREY),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [_WHITE, colors.HexColor('#fdf6f0')]),
+            ('TOPPADDING', (0, 0), (-1, -1), 4),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
         ])
-    if len(rows) == 1:
-        rows.append(['No recorded scores for this session', '-', '-', '-', '-', '-'])
+        for row_index, row in enumerate(summary['rows'], start=1):
+            table_style.add('TEXTCOLOR', (-1, row_index), (-1, row_index), _letter_color(row['letter']))
+            table_style.add('FONTNAME', (-1, row_index), (-1, row_index), 'Helvetica-Bold')
+        table.setStyle(table_style)
+        _table_width, table_height = table.wrapOn(cv, content_width, height)
+        table.drawOn(cv, margin, y - table_height)
+        y -= table_height + 10 * mm
 
-    table = Table(rows, colWidths=[62 * mm, 24 * mm, 24 * mm, 24 * mm, 24 * mm, 18 * mm])
-    table_style = TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), _RED),
-        ('TEXTCOLOR', (0, 0), (-1, 0), _WHITE),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('ALIGN', (1, 0), (-1, -1), 'CENTER'),
-        ('ALIGN', (0, 0), (0, -1), 'LEFT'),
-        ('GRID', (0, 0), (-1, -1), 0.4, _GREY),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [_WHITE, colors.HexColor('#fdf6f0')]),
-        ('TOPPADDING', (0, 0), (-1, -1), 4),
-        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-    ])
-    for row_index, row in enumerate(summary['rows'], start=1):
-        table_style.add('TEXTCOLOR', (-1, row_index), (-1, row_index), _letter_color(row['letter']))
-        table_style.add('FONTNAME', (-1, row_index), (-1, row_index), 'Helvetica-Bold')
-    table.setStyle(table_style)
-    _table_width, table_height = table.wrapOn(cv, content_width, height)
-    table.drawOn(cv, margin, y - table_height)
-    y -= table_height + 10 * mm
+        _rounded_rect(cv, margin, y - 18 * mm, content_width, 18 * mm, 4, fill=_LIGHT, stroke=_GREY)
+        cv.setFillColor(_RED)
+        cv.setFont('Helvetica-Bold', 9)
+        cv.drawString(margin + 4 * mm, y - 7 * mm, 'PROMOTION DECISION:')
+        cv.setFillColor(_DARK)
+        cv.setFont('Helvetica-Bold', 10)
+        cv.drawString(margin + 48 * mm, y - 7 * mm, summary['promotion_decision'])
+        cv.setFont('Helvetica', 7)
+        cv.drawString(margin + 4 * mm, y - 14 * mm, 'Decision is based on the average of first, second and third term subject results.')
+        y -= 18 * mm
+        return y
 
-    _rounded_rect(cv, margin, y - 18 * mm, content_width, 18 * mm, 4, fill=_LIGHT, stroke=_GREY)
-    cv.setFillColor(_RED)
-    cv.setFont('Helvetica-Bold', 9)
-    cv.drawString(margin + 4 * mm, y - 7 * mm, 'PROMOTION DECISION:')
-    cv.setFillColor(_DARK)
-    cv.setFont('Helvetica-Bold', 10)
-    cv.drawString(margin + 48 * mm, y - 7 * mm, summary['promotion_decision'])
-    cv.setFont('Helvetica', 7)
-    cv.drawString(margin + 4 * mm, y - 14 * mm, 'Decision is based on the average of first, second and third term subject results.')
-
-    cv.showPage()
-    cv.save()
-    return buf.getvalue()
-
+    return _render_single_page_pdf(_draw)
 
 @login_required
 def report_card_pdf(request):
