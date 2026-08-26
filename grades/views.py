@@ -22,6 +22,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Table, TableStyle
+from reportlab.pdfbase.pdfmetrics import stringWidth
 
 from .models import (
     Student,
@@ -1792,6 +1793,23 @@ def _letter_color(letter):
         'F': colors.HexColor('#6b0000'),
     }.get(str(letter).upper(), _DARK)
 
+def _wrap_text(text, font_name, font_size, max_width):
+    """Break text into lines that each fit within max_width."""
+    words = (text or '').split()
+    lines = []
+    current = ''
+    for word in words:
+        candidate = f'{current} {word}'.strip()
+        if stringWidth(candidate, font_name, font_size) <= max_width:
+            current = candidate
+        else:
+            if current:
+                lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines or ['']
+
 
 def _average_letter_grade(average_score):
     if average_score >= 90:
@@ -2177,8 +2195,18 @@ def build_report_card(
             cv.setFillColor(colors.HexColor('#888888'))
             cv.drawRightString(right_col_x + right_col_w - 3 * mm, row_y, score_range)
 
+        line_height = 3.3 * mm
+        max_text_width = right_col_w - 6 * mm
+
+        teacher_text = (teacher_comment or '').strip()
+        head_text = (head_comment or '').strip()
+        teacher_lines = _wrap_text(teacher_text, 'Helvetica', 7.5, max_text_width) if teacher_text else ['_' * 36]
+        head_lines = _wrap_text(head_text, 'Helvetica', 7.5, max_text_width) if head_text else ['_' * 36]
+
+        teacher_block_h = 10.5 * mm + len(teacher_lines) * line_height
+        head_block_h = 10.5 * mm + len(head_lines) * line_height
         comment_top = y - key_h - 3 * mm
-        comment_h = max(behavior_height - key_h - 3 * mm, 22 * mm)
+        comment_h = max(behavior_height - key_h - 3 * mm, teacher_block_h + head_block_h + 4 * mm, 22 * mm)
         _rounded_rect(cv, right_col_x, comment_top - comment_h, right_col_w, comment_h, 3, fill=_WHITE, stroke=_GREY)
 
         cv.setFont('Helvetica-Bold', 7.5)
@@ -2186,14 +2214,17 @@ def build_report_card(
         cv.drawString(right_col_x + 3 * mm, comment_top - 5 * mm, "CLASS TEACHER'S COMMENT")
         cv.setFont('Helvetica', 7.5)
         cv.setFillColor(_DARK)
-        cv.drawString(right_col_x + 3 * mm, comment_top - 10.5 * mm, (teacher_comment or '').strip() or ('_' * 36))
+        for index, line in enumerate(teacher_lines):
+            cv.drawString(right_col_x + 3 * mm, comment_top - 10.5 * mm - index * line_height, line)
 
+        head_label_y = comment_top - 10.5 * mm - len(teacher_lines) * line_height - 4 * mm
         cv.setFont('Helvetica-Bold', 7.5)
         cv.setFillColor(_RED)
-        cv.drawString(right_col_x + 3 * mm, comment_top - 17 * mm, "HEAD TEACHER'S COMMENT")
+        cv.drawString(right_col_x + 3 * mm, head_label_y, "HEAD TEACHER'S COMMENT")
         cv.setFont('Helvetica', 7.5)
         cv.setFillColor(_DARK)
-        cv.drawString(right_col_x + 3 * mm, comment_top - 22.5 * mm, (head_comment or '').strip() or ('_' * 36))
+        for index, line in enumerate(head_lines):
+            cv.drawString(right_col_x + 3 * mm, head_label_y - 5.5 * mm - index * line_height, line)
 
         y -= max(behavior_height, key_h + comment_h + 3 * mm) + 5 * mm
 

@@ -191,6 +191,8 @@ __marimo__/
 
 # Local development
 tempCodeRunnerFile.py
+backups/
+tools/
 cache/
 RecycleBin/
 logs/
