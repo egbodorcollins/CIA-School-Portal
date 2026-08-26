@@ -29,31 +29,31 @@
                     </div>
 
                     <nav class="portal-nav" aria-label="Portal sections">
-                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'admin_dashboard' or request.resolver_match.url_name == 'index' %}is-active{% endif %}" href="{% url 'admin_dashboard' %}">
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'admin_dashboard' or request.resolver_match.url_name == 'portal_admin_dashboard' or request.resolver_match.url_name == 'index' %}is-active{% endif %}" href="{% url 'portal_admin_dashboard' %}">
                             <span class="portal-nav-icon">⌂</span><span>Dashboard</span>
                         </a>
-                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'teacher_dashboard' %}is-active{% endif %}" href="{% url 'teacher_dashboard' %}">
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'admin_classes' or request.resolver_match.url_name == 'admin_class_detail' %}is-active{% endif %}" href="{% url 'admin_classes' %}">
                             <span class="portal-nav-icon">▣</span><span>Classes</span>
                         </a>
-                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'enter_academic_scores' %}is-active{% endif %}" href="{% url 'enter_academic_scores' %}">
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'admin_subjects' or request.resolver_match.url_name == 'admin_subject_detail' %}is-active{% endif %}" href="{% url 'admin_subjects' %}">
                             <span class="portal-nav-icon">◫</span><span>Subjects</span>
                         </a>
-                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'manage_students' %}is-active{% endif %}" href="{% url 'manage_students' %}">
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'admin_students' or request.resolver_match.url_name == 'admin_student_detail' %}is-active{% endif %}" href="{% url 'admin_students' %}">
                             <span class="portal-nav-icon">◍</span><span>Students</span>
                         </a>
-                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'register_teacher' %}is-active{% endif %}" href="{% url 'register_teacher' %}">
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'admin_staff' or request.resolver_match.url_name == 'admin_staff_detail' or request.resolver_match.url_name == 'admin_staff_new' or request.resolver_match.url_name == 'register_teacher' %}is-active{% endif %}" href="{% url 'admin_staff' %}">
                             <span class="portal-nav-icon">◔</span><span>Staff</span>
                         </a>
-                        <a class="portal-nav-item" href="{% url 'manage_students' %}#end-of-year-promotion">
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'admin_promotion' or request.resolver_match.url_name == 'admin_promotion_class' %}is-active{% endif %}" href="{% url 'admin_promotion' %}">
                             <span class="portal-nav-icon">⇄</span><span>Promotion</span>
                         </a>
-                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'staff_results' %}is-active{% endif %}" href="{% url 'staff_results' %}">
+                        <a class="portal-nav-item {% if request.resolver_match.url_name == 'admin_results' or request.resolver_match.url_name == 'staff_results' or request.resolver_match.url_name == 'result_publications' %}is-active{% endif %}" href="{% url 'admin_results' %}">
                             <span class="portal-nav-icon">◷</span><span>Results</span>
                         </a>
                     </nav>
 
                     <div class="portal-sidebar-footer">
-                        <a class="portal-sidebar-link" href="{% url 'set_current_term' %}">Settings</a>
+                        <a class="portal-sidebar-link" href="{% url 'admin_settings' %}">Settings</a>
                     </div>
                 </aside>
 

@@ -44,7 +44,7 @@
                             <button type="submit" class="btn btn-success btn-lg shadow-sm">
                                 <i class="fas fa-save me-2"></i>Create and Assign Account
                             </button>
-                            <a href="{% url 'teacher_dashboard' %}" class="btn btn-outline-secondary">
+                            <a href="{% if cancel_url_name == 'admin_staff' %}{% url 'admin_staff' %}{% else %}{% url 'teacher_dashboard' %}{% endif %}" class="btn btn-outline-secondary">
                                 Cancel
                             </a>
                         </div>

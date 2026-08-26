@@ -1,0 +1,67 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Class operations</p>
+        <h2>Classes</h2>
+        <p>Review each class, its teacher coverage, current score activity, behavior entries, and promotion path.</p>
+    </div>
+    <a class="button button-primary" href="{% url 'register_student' %}">Register student</a>
+</div>
+
+<div class="portal-grid portal-grid--cards">
+    <div class="portal-card">
+        <span class="portal-card-label">Current period</span>
+        <strong>{{ current_academic_year }}</strong>
+        <p>{{ current_term_display }}</p>
+    </div>
+    <a class="portal-card" href="{% url 'class_analytics' %}">
+        <span class="portal-card-label">Analytics</span>
+        <strong>Class performance</strong>
+        <p>Compare academic performance for the selected term.</p>
+    </a>
+</div>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Class List</h3>
+        <a href="{% url 'admin_promotion' %}">Promotion center</a>
+    </div>
+    {% if class_rows %}
+        <div class="grades-table release-table">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Class</th>
+                        <th>Teacher</th>
+                        <th>Students</th>
+                        <th>Scores</th>
+                        <th>Average</th>
+                        <th>Behavior</th>
+                        <th>Next Class</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in class_rows %}
+                        <tr>
+                            <td><strong>{{ row.name }}</strong></td>
+                            <td>{{ row.teacher.get_full_name|default:row.teacher.username|default:'Unassigned' }}</td>
+                            <td>{{ row.student_count }}</td>
+                            <td>{{ row.grade_count }}</td>
+                            <td>{% if row.average is not None %}{{ row.average|floatformat:1 }}{% else %}<span class="table-muted">No scores</span>{% endif %}</td>
+                            <td>{{ row.behavior_count }}</td>
+                            <td>{{ row.next_class|default:'Final class' }}</td>
+                            <td>
+                                <a class="button button-small" href="{% url 'admin_class_detail' row.name %}">Open</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="empty-state">No classes have registered students yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

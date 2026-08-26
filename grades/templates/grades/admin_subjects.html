@@ -1,0 +1,39 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Score entry and performance</p>
+        <h2>Subjects</h2>
+        <p>Use subjects as the academic score entry and performance module for {{ current_academic_year }} - {{ current_term_display }}.</p>
+    </div>
+    <a class="button button-primary" href="{% url 'enter_academic_scores' %}">Enter scores</a>
+</div>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Subject List</h3>
+        <a href="{% url 'class_analytics' %}">View performance</a>
+    </div>
+    {% if subjects %}
+        <div class="grades-table release-table">
+            <table>
+                <thead><tr><th>Subject</th><th>Code</th><th>Enrolled Students</th><th>Scores</th><th>Average</th><th>Actions</th></tr></thead>
+                <tbody>
+                    {% for subject in subjects %}
+                        <tr>
+                            <td><strong>{{ subject.name }}</strong></td>
+                            <td>{{ subject.code }}</td>
+                            <td>{{ subject.student_count }}</td>
+                            <td>{{ subject.current_grade_count }}</td>
+                            <td>{% if subject.current_average %}{{ subject.current_average|floatformat:1 }}{% else %}<span class="table-muted">No scores</span>{% endif %}</td>
+                            <td><a class="button button-small" href="{% url 'admin_subject_detail' subject.pk %}">Open</a></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="empty-state">No subjects are configured yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

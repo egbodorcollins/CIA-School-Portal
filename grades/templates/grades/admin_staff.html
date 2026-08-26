@@ -1,0 +1,46 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Staff management</p>
+        <h2>Staff</h2>
+        <p>Review staff accounts, class assignments, subject assignments, and account status.</p>
+    </div>
+    <a class="button button-primary" href="{% url 'admin_staff_new' %}">Register new staff</a>
+</div>
+
+<div class="release-stats">
+    <div class="release-stat"><span>Total staff</span><strong>{{ total_staff }}</strong></div>
+    <div class="release-stat"><span>Active staff</span><strong>{{ active_staff }}</strong></div>
+    <div class="release-stat"><span>Class teachers</span><strong>{{ class_teacher_count }}</strong></div>
+    <div class="release-stat"><span>Subject teachers</span><strong>{{ subject_teacher_count }}</strong></div>
+</div>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Staff List</h3>
+    </div>
+    {% if profiles %}
+        <div class="grades-table release-table">
+            <table>
+                <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Class</th><th>Subjects</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>
+                    {% for profile in profiles %}
+                        <tr>
+                            <td><strong>{{ profile.user.get_full_name|default:profile.user.username }}</strong></td>
+                            <td>{{ profile.user.username }}</td>
+                            <td>{{ profile.get_role_display }}</td>
+                            <td>{{ profile.assigned_class|default:'-' }}</td>
+                            <td>{{ profile.assigned_subjects.count }}</td>
+                            <td>{% if profile.user.is_active %}<span class="status-pill status-open">Active</span>{% else %}<span class="status-pill status-locked">Inactive</span>{% endif %}</td>
+                            <td><a class="button button-small" href="{% url 'admin_staff_detail' profile.pk %}">Open</a></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="empty-state">No staff accounts are registered yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

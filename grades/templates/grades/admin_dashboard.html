@@ -6,21 +6,21 @@
         <h2>Portal Overview</h2>
         <p>Keep classes, staff, results, and announcements aligned with the active academic year.</p>
     </div>
-    <a class="button button-primary" href="{% url 'set_current_term' %}">Review current term</a>
+    <a class="button button-primary" href="{% url 'admin_settings' %}">Review current term</a>
 </div>
 
 <div class="portal-grid portal-grid--cards">
-    <a class="portal-card" href="{% url 'manage_students' %}">
+    <a class="portal-card" href="{% url 'admin_students' %}">
         <span class="portal-card-label">Enrollment snapshot</span>
         <strong>{{ total_students }} students</strong>
         <p>Across {{ class_count }} active classes.</p>
     </a>
-    <a class="portal-card" href="{% url 'register_teacher' %}">
+    <a class="portal-card" href="{% url 'admin_staff' %}">
         <span class="portal-card-label">Staff snapshot</span>
         <strong>{{ teacher_count }} teachers</strong>
         <p>Class and subject teaching coverage is visible at a glance.</p>
     </a>
-    <a class="portal-card" href="{% url 'result_publications' %}">
+    <a class="portal-card" href="{% url 'admin_results' %}">
         <span class="portal-card-label">Results status</span>
         <strong>{{ locked_count }} pending</strong>
         <p>Classes still awaiting result approvals.</p>
@@ -57,7 +57,7 @@
     <section class="portal-panel">
         <div class="portal-panel-header">
             <h3>Promotion requests</h3>
-            <a href="{% url 'manage_students' %}#end-of-year-promotion">Review</a>
+            <a href="{% url 'admin_promotion' %}">Review</a>
         </div>
         {% if pending_promotions %}
             <ul class="portal-list">

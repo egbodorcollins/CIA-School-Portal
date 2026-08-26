@@ -1,0 +1,38 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Portal configuration</p>
+        <h2>Settings</h2>
+        <p>Set the academic context that drives score entry, dashboards, result releases, and promotion timing.</p>
+    </div>
+    <a class="button button-primary" href="{% url 'admin_academic_session' %}">Edit academic session</a>
+</div>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Academic Session</h3>
+    </div>
+    {% if term_setting %}
+        <div class="portal-grid portal-grid--cards">
+            <div class="portal-card"><span class="portal-card-label">Active academic year</span><strong>{{ term_setting.current_academic_year }}</strong><p>Current school session.</p></div>
+            <div class="portal-card"><span class="portal-card-label">Active term</span><strong>{{ term_setting.get_current_term_display }}</strong><p>Used across score entry and results.</p></div>
+        </div>
+        <p class="helper-text" style="margin-top: 16px;">Last updated {{ term_setting.updated_at|date:'M j, Y g:i A' }}.</p>
+    {% else %}
+        <p class="empty-state">No academic session has been saved yet.</p>
+    {% endif %}
+</section>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Additional Settings</h3>
+    </div>
+    <ul class="portal-list">
+        <li><strong>Grading settings</strong><span>Planned</span></li>
+        <li><strong>School information</strong><span>Planned</span></li>
+        <li><strong>Result settings</strong><span>Planned</span></li>
+        <li><strong>User permissions</strong><span>Managed through staff roles</span></li>
+    </ul>
+</section>
+{% endblock %}

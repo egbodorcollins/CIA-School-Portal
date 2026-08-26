@@ -1,0 +1,52 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Class workspace</p>
+        <h2>{{ class_name }}</h2>
+        <p>{{ current_academic_year }} - {{ current_term_display }} class overview, roster, scores, behavior, results, promotion, and analytics.</p>
+    </div>
+    <a class="button button-secondary" href="{% url 'admin_classes' %}">Back to classes</a>
+</div>
+
+<div class="portal-grid portal-grid--cards">
+    <div class="portal-card"><span class="portal-card-label">Students</span><strong>{{ student_count }}</strong><p>Current roster size.</p></div>
+    <div class="portal-card"><span class="portal-card-label">Class teacher</span><strong>{{ teacher.get_full_name|default:teacher.username|default:'Unassigned' }}</strong><p>Assigned class teacher.</p></div>
+    <div class="portal-card"><span class="portal-card-label">Score entries</span><strong>{{ grade_count }}</strong><p>{% if average is not None %}Average {{ average|floatformat:1 }}{% else %}No current average yet{% endif %}</p></div>
+    <div class="portal-card"><span class="portal-card-label">Behavior entries</span><strong>{{ behavior_count }}</strong><p>Current term records.</p></div>
+</div>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Class Actions</h3>
+    </div>
+    <div class="teacher-actions">
+        <a class="button button-secondary" href="{% url 'admin_students' %}?class={{ class_name|urlencode }}">Student roster</a>
+        <a class="button button-secondary" href="{% url 'enter_academic_scores' %}">Enter scores</a>
+        <a class="button button-secondary" href="{% url 'enter_behavioral_assessments' %}">Behavior</a>
+        <a class="button button-secondary" href="{% url 'staff_results' %}?class={{ class_name|urlencode }}&academic_year={{ current_academic_year|urlencode }}&term={{ current_term|urlencode }}">Results</a>
+        {% if next_class %}
+            <a class="button button-primary" href="{% url 'admin_promotion_class' class_name %}">Promotion</a>
+        {% endif %}
+        <a class="button button-secondary" href="{% url 'class_analytics' %}?class={{ class_name|urlencode }}">Analytics</a>
+    </div>
+</section>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Subject Performance</h3>
+    </div>
+    {% if subject_averages %}
+        <ul class="portal-list">
+            {% for subject in subject_averages %}
+                <li>
+                    <strong>{{ subject.subject__name }} <span class="table-muted">{{ subject.subject__code }}</span></strong>
+                    <span>{{ subject.average|floatformat:1 }} average from {{ subject.entries }} score(s)</span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="empty-state">No subject scores have been entered for this class in the current term.</p>
+    {% endif %}
+</section>
+{% endblock %}

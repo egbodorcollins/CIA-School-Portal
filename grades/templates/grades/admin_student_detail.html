@@ -1,0 +1,68 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Student profile</p>
+        <h2>{{ student.full_name }}</h2>
+        <p>{{ student.student_id }} - {{ student.class_name|default:'No Class' }}</p>
+    </div>
+    <a class="button button-secondary" href="{% url 'admin_students' %}">Back to students</a>
+</div>
+
+<div class="portal-grid portal-grid--cards">
+    <div class="portal-card"><span class="portal-card-label">Admission number</span><strong>{{ student.student_id }}</strong><p>Portal login ID.</p></div>
+    <div class="portal-card"><span class="portal-card-label">Current class</span><strong>{{ student.class_name|default:'No Class' }}</strong><p>Academic placement.</p></div>
+    <div class="portal-card"><span class="portal-card-label">Nationality</span><strong>{{ student.nationality|default:'N/A' }}</strong><p>{{ student.state_of_origin|default:'State not recorded' }}</p></div>
+    <div class="portal-card"><span class="portal-card-label">Average</span><strong>{% if average %}{{ average|floatformat:1 }}{% else %}No scores{% endif %}</strong><p>{{ selected_academic_year }} {{ selected_term_display }}</p></div>
+</div>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Actions</h3>
+    </div>
+    <div class="teacher-actions">
+        <a class="button button-secondary" target="_blank" href="{% url 'staff_report_pdf' student.pk %}?academic_year={{ selected_academic_year|urlencode }}&term={{ selected_term|urlencode }}">Print term result</a>
+        <a class="button button-secondary" target="_blank" href="{% url 'staff_report_pdf' student.pk %}?academic_year={{ selected_academic_year|urlencode }}&term=session">Print session summary</a>
+        {% if student.class_name %}
+            <a class="button button-primary" href="{% url 'admin_promotion_class' student.class_name %}">Promotion review</a>
+        {% endif %}
+    </div>
+</section>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Academic Results</h3>
+    </div>
+    {% if grades %}
+        <div class="grades-table release-table">
+            <table>
+                <thead><tr><th>Subject</th><th>Total</th><th>Grade</th><th>Remarks</th></tr></thead>
+                <tbody>
+                    {% for grade in grades %}
+                        <tr>
+                            <td>{{ grade.subject.name }}</td>
+                            <td>{{ grade.marks|floatformat:0 }}</td>
+                            <td>{{ grade.letter_grade }}</td>
+                            <td>{{ grade.remarks|default:'-' }}</td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="empty-state">No academic results are recorded for this period.</p>
+    {% endif %}
+</section>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Behavioral Records</h3>
+    </div>
+    {% if behavior %}
+        <p>Times present: <strong>{{ behavior.times_present }}</strong></p>
+        <p>Class teacher comment: {{ behavior.remarks|default:'No comment recorded.' }}</p>
+    {% else %}
+        <p class="empty-state">No behavioral record is available for this period.</p>
+    {% endif %}
+</section>
+{% endblock %}

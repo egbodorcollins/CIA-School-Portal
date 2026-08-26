@@ -1,0 +1,60 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Results control center</p>
+        <h2>Results</h2>
+        <p>Review result entries, approvals, releases, and printable student reports for {{ current_academic_year }} - {{ current_term_display }}.</p>
+    </div>
+    <a class="button button-primary" href="{% url 'result_publications' %}">Manage releases</a>
+</div>
+
+<div class="release-stats">
+    <div class="release-stat"><span>Students</span><strong>{{ student_count }}</strong></div>
+    <div class="release-stat"><span>Score entries</span><strong>{{ grade_count }}</strong></div>
+    <div class="release-stat"><span>Approved</span><strong>{{ approved_count }}</strong></div>
+    <div class="release-stat"><span>Released</span><strong>{{ released_count }}</strong></div>
+    <div class="release-stat"><span>Locked</span><strong>{{ locked_count }}</strong></div>
+</div>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Result Areas</h3>
+    </div>
+    <div class="teacher-actions">
+        <a class="button button-secondary" href="{% url 'result_publications' %}">Approvals and releases</a>
+        <a class="button button-secondary" href="{% url 'staff_results' %}">Student results</a>
+        <a class="button button-secondary" href="{% url 'enter_academic_scores' %}">Enter scores</a>
+    </div>
+</section>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Class Result Status</h3>
+    </div>
+    {% if class_rows %}
+        <div class="grades-table release-table">
+            <table>
+                <thead><tr><th>Class</th><th>Students</th><th>Scores</th><th>Approved</th><th>Released</th><th>Actions</th></tr></thead>
+                <tbody>
+                    {% for row in class_rows %}
+                        <tr>
+                            <td><strong>{{ row.name }}</strong></td>
+                            <td>{{ row.student_count }}</td>
+                            <td>{{ row.grade_count }}</td>
+                            <td>{{ row.approved_count }}</td>
+                            <td>{{ row.released_count }}</td>
+                            <td>
+                                <a class="button button-small" href="{% url 'staff_results' %}?class={{ row.name|urlencode }}&academic_year={{ current_academic_year|urlencode }}&term={{ current_term|urlencode }}">View</a>
+                                <a class="button button-small button-secondary" href="{% url 'result_publications' %}?class={{ row.name|urlencode }}&academic_year={{ current_academic_year|urlencode }}&term={{ current_term|urlencode }}">Release</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="empty-state">No classes have result status yet.</p>
+    {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Subject workspace</p>
+        <h2>{{ subject.name }}</h2>
+        <p>{{ subject.code }} - {{ current_academic_year }} {{ current_term_display }} score entry and subject performance.</p>
+    </div>
+    <a class="button button-secondary" href="{% url 'admin_subjects' %}">Back to subjects</a>
+</div>
+
+<div class="portal-grid portal-grid--cards">
+    <div class="portal-card"><span class="portal-card-label">Enrolled students</span><strong>{{ student_count }}</strong><p>Students attached to this subject.</p></div>
+    <div class="portal-card"><span class="portal-card-label">Score entries</span><strong>{{ grade_count }}</strong><p>{% if average %}Average {{ average|floatformat:1 }}{% else %}No current average yet{% endif %}</p></div>
+</div>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Class Performance</h3>
+        <a href="{% url 'enter_academic_scores' %}?subject={{ subject.pk }}">Enter scores</a>
+    </div>
+    {% if class_rows %}
+        <ul class="portal-list">
+            {% for row in class_rows %}
+                <li>
+                    <strong>{{ row.student__class_name|default:'No Class' }}</strong>
+                    <span>{{ row.average|floatformat:1 }} average from {{ row.entries }} score(s)</span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="empty-state">No current term scores have been entered for this subject.</p>
+    {% endif %}
+</section>
+{% endblock %}
