@@ -2609,21 +2609,6 @@ def build_report_card(
 
     return _render_single_page_pdf(_draw)
 
-        cv.setStrokeColor(_GREY)
-        cv.setLineWidth(0.5)
-        cv.line(margin, y, margin + content_width, y)
-        y -= 4 * mm
-        cv.setFont('Helvetica', 7)
-        cv.setFillColor(colors.HexColor('#888888'))
-        cv.drawCentredString(
-            width / 2,
-            y,
-            'Official use requires the school stamp and authorised signature. This report is computer-generated for preview only.',
-        )
-        return y
-
-    return _render_single_page_pdf(_draw)
-
 def _term_report_pdf_bytes(student, selected_academic_year, selected_term):
     term_display = _term_display(selected_term)
 
