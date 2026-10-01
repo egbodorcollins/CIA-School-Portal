@@ -1,0 +1,33 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Staff profile</p>
+        <h2>{{ staff_profile.user.get_full_name|default:staff_profile.user.username }}</h2>
+        <p>{{ staff_profile.get_role_display }} - {{ staff_profile.user.username }}</p>
+    </div>
+    <a class="button button-secondary" href="{% url 'admin_staff' %}">Back to staff</a>
+</div>
+
+<div class="portal-grid portal-grid--cards">
+    <div class="portal-card"><span class="portal-card-label">Role</span><strong>{{ staff_profile.get_role_display }}</strong><p>Current portal role.</p></div>
+    <div class="portal-card"><span class="portal-card-label">Assigned class</span><strong>{{ staff_profile.assigned_class|default:'None' }}</strong><p>{{ assigned_class_count }} class assignment.</p></div>
+    <div class="portal-card"><span class="portal-card-label">Assigned subjects</span><strong>{{ staff_profile.assigned_subjects.count }}</strong><p>Subject teaching load.</p></div>
+    <div class="portal-card"><span class="portal-card-label">Account status</span><strong>{% if staff_profile.user.is_active %}Active{% else %}Inactive{% endif %}</strong><p>Authentication status.</p></div>
+</div>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Subjects</h3>
+    </div>
+    {% if staff_profile.assigned_subjects.all %}
+        <ul class="portal-list">
+            {% for subject in staff_profile.assigned_subjects.all %}
+                <li><strong>{{ subject.name }}</strong><span>{{ subject.code }}</span></li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="empty-state">No subjects are assigned to this staff member.</p>
+    {% endif %}
+</section>
+{% endblock %}

@@ -12,3 +12,10 @@ def replace(value, arg):
         return value
     old, new = arg[0], arg[1:]
     return str(value).replace(old, new)
+
+
+@register.filter
+def get_item(value, key):
+    if not isinstance(value, dict):
+        return None
+    return value.get(key)

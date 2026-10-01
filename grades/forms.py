@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ValidationError
 from django.db.models import Q
 from django.utils import timezone
-from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile
+from .models import Student, Subject, Grade, BehavioralGrade, TermSetting, Profile, Announcement
 from .subject_map import STANDARD_SUBJECTS
 
 
@@ -311,6 +311,53 @@ class TermSettingForm(forms.ModelForm):
     class Meta:
         model = TermSetting
         fields = ['current_academic_year', 'current_term']
+
+
+class AnnouncementForm(forms.ModelForm):
+    target_classes = forms.MultipleChoiceField(
+        choices=CLASS_CHOICES,
+        required=False,
+        widget=forms.SelectMultiple,
+        help_text='Use for announcements that should reach specific classes.',
+    )
+    target_users = forms.ModelMultipleChoiceField(
+        queryset=User.objects.select_related('profile').order_by('username'),
+        required=False,
+        widget=forms.SelectMultiple,
+        help_text='Use for announcements that should reach named portal users.',
+    )
+
+    class Meta:
+        model = Announcement
+        fields = ['title', 'body', 'audience', 'target_classes', 'target_users', 'is_active']
+        widgets = {
+            'body': forms.Textarea(attrs={'rows': 5}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        if self.instance and self.instance.pk:
+            self.fields['target_classes'].initial = self.instance.target_classes or []
+
+    def clean(self):
+        cleaned_data = super().clean()
+        audience = cleaned_data.get('audience')
+        target_classes = cleaned_data.get('target_classes') or []
+        target_users = cleaned_data.get('target_users')
+
+        if audience == Announcement.AUDIENCE_CLASSES and not target_classes:
+            self.add_error('target_classes', 'Choose at least one class for a class announcement.')
+        if audience == Announcement.AUDIENCE_INDIVIDUALS and not target_users:
+            self.add_error('target_users', 'Choose at least one person for an individual announcement.')
+        return cleaned_data
+
+    def save(self, commit=True):
+        announcement = super().save(commit=False)
+        announcement.target_classes = list(self.cleaned_data.get('target_classes') or [])
+        if commit:
+            announcement.save()
+            self.save_m2m()
+        return announcement
 
 
 class TeacherCreationForm(forms.Form):

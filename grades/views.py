@@ -22,6 +22,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Table, TableStyle
+from reportlab.pdfbase.pdfmetrics import stringWidth
 
 from .models import (
     Student,
@@ -30,6 +31,7 @@ from .models import (
     TermSetting,
     Profile,
     Activity,
+    Announcement,
     Subject,
     ClassPromotionRequest,
     ResultPublication,
@@ -37,12 +39,14 @@ from .models import (
     validate_academic_year,
 )
 from django.db.models import Avg, Count, Q
+from django.db.utils import DatabaseError
 from .forms import (
     AUTO_STUDENT_PASSWORD,
     StudentSignUpForm,
     GradeEntryForm,
     BehavioralGradeEntryForm,
     TermSettingForm,
+    AnnouncementForm,
     TeacherCreationForm,
     enroll_student_in_standard_subjects,
     get_class_code,
@@ -180,8 +184,9 @@ def _subject_teacher_students(profile, subject=None):
 def _student_result_period(student, requested_year=None, requested_term=None):
     grade_periods = Grade.objects.filter(student=student).values_list('academic_year', 'term')
     behavior_periods = BehavioralGrade.objects.filter(student=student).values_list('academic_year', 'term')
+    publication_periods = ResultPublication.objects.filter(student=student).values_list('academic_year', 'term')
     periods = sorted(
-        set(grade_periods).union(set(behavior_periods)),
+        set(grade_periods).union(set(behavior_periods)).union(set(publication_periods)),
         key=lambda item: (item[0], TERM_ORDER.get(item[1], 0)),
         reverse=True,
     )
@@ -232,6 +237,129 @@ def _staff_student_queryset(user):
     if _user_can_approve_promotions(user, profile):
         return Student.objects.all()
     return Student.objects.none()
+
+
+def _visible_announcements_for_user(user, limit=6):
+    if not user or not user.is_authenticated:
+        try:
+            return list(Announcement.objects.filter(
+                is_active=True,
+                audience=Announcement.AUDIENCE_EVERYONE,
+            ).select_related('created_by')[:limit])
+        except DatabaseError:
+            return []
+
+    profile = getattr(user, 'profile', None)
+    role = profile.role if profile else None
+    if user.is_superuser or role == Profile.ROLE_ADMIN:
+        try:
+            return list(Announcement.objects.filter(is_active=True).select_related('created_by').prefetch_related('target_users')[:limit])
+        except DatabaseError:
+            return []
+
+    is_staff_user = bool(user.is_superuser or getattr(user, 'is_staff', False) or role in [
+        Profile.ROLE_ADMIN,
+        Profile.ROLE_CLASS_TEACHER,
+        Profile.ROLE_SUBJECT_TEACHER,
+    ])
+
+    try:
+        student = Student.objects.filter(student_id=user.username).first()
+    except Exception:
+        student = None
+
+    visible = []
+    try:
+        announcements = Announcement.objects.filter(is_active=True).select_related('created_by').prefetch_related('target_users')
+    except DatabaseError:
+        return []
+
+    try:
+        for announcement in announcements:
+            target_classes = announcement.target_classes or []
+            is_target_user = announcement.target_users.filter(pk=user.pk).exists()
+            is_target_class = (
+                (student and student.class_name in target_classes)
+                or (profile and profile.assigned_class in target_classes)
+            )
+
+            if announcement.audience == Announcement.AUDIENCE_EVERYONE:
+                visible.append(announcement)
+            elif announcement.audience == Announcement.AUDIENCE_STAFF and is_staff_user:
+                visible.append(announcement)
+            elif announcement.audience == Announcement.AUDIENCE_CLASS_TEACHERS and role == Profile.ROLE_CLASS_TEACHER:
+                visible.append(announcement)
+            elif announcement.audience == Announcement.AUDIENCE_SUBJECT_TEACHERS and role == Profile.ROLE_SUBJECT_TEACHER:
+                visible.append(announcement)
+            elif announcement.audience == Announcement.AUDIENCE_STUDENTS and role == Profile.ROLE_STUDENT:
+                visible.append(announcement)
+            elif announcement.audience == Announcement.AUDIENCE_CLASSES and is_target_class:
+                visible.append(announcement)
+            elif announcement.audience == Announcement.AUDIENCE_INDIVIDUALS and is_target_user:
+                visible.append(announcement)
+
+            if len(visible) >= limit:
+                break
+    except DatabaseError:
+        return []
+
+    return visible
+
+
+def _admin_announcements(limit=6):
+    try:
+        return list(Announcement.objects.filter(is_active=True).select_related('created_by')[:limit])
+    except DatabaseError:
+        return []
+
+
+def _term_subject_for_family(class_code, abbr, term):
+    term_digit = TERM_DIGITS.get(term)
+    if not term_digit:
+        return None
+    return Subject.objects.filter(code=f'{abbr} {class_code}{term_digit}').first()
+
+
+def _session_entry_rows(student, academic_year):
+    class_code = get_class_code(student.class_name)
+    if not class_code or class_code not in STANDARD_SUBJECTS:
+        return []
+
+    academic_terms = ['first_term', 'second_term', 'third_term']
+    rows = []
+    for abbr, subject_name in STANDARD_SUBJECTS[class_code]:
+        terms = {}
+        marks = []
+        for term in academic_terms:
+            subject = _term_subject_for_family(class_code, abbr, term)
+            grade = None
+            if subject:
+                grade = Grade.objects.filter(
+                    student=student,
+                    subject=subject,
+                    academic_year=academic_year,
+                    term=term,
+                ).first()
+            value = grade.marks if grade else None
+            if value is not None:
+                marks.append(value)
+            terms[term] = {
+                'subject': subject,
+                'grade': grade,
+                'value': value,
+                'is_locked': grade is not None,
+                'input_name': f'total_{subject.pk}_{term}' if subject and grade is None else '',
+            }
+
+        average = (sum(marks) / len(marks)) if marks else None
+        rows.append({
+            'abbr': abbr,
+            'subject': subject_name,
+            'terms': terms,
+            'average': average,
+            'letter': _average_letter_grade(average or 0),
+        })
+    return rows
 
 
 def _class_options():
@@ -287,6 +415,7 @@ def _admin_dashboard_context():
         .annotate(student_count=Count('id'))
         .order_by('class_name'),
         'recent_activities': Activity.objects.select_related('actor', 'target_student', 'target_subject')[:10],
+        'announcements': _admin_announcements(),
     }
 
 
@@ -336,6 +465,7 @@ def home(request):
 
     return render(request, 'grades/home.html', {
         'recent_activities': recent_activities,
+        'announcements': _visible_announcements_for_user(request.user),
     })
 
 
@@ -459,6 +589,8 @@ def register_teacher(request):
                 pass
 
             messages.success(request, f'{dict(Profile.ROLE_CHOICES).get(chosen_role, chosen_role)} account created for {user.username}.')
+            if request.resolver_match and request.resolver_match.url_name == 'admin_staff_new':
+                return redirect('admin_staff')
             return redirect('teacher_dashboard')
     else:
         form = TeacherCreationForm()
@@ -468,6 +600,7 @@ def register_teacher(request):
 
     return render(request, 'grades/register_teacher.html', {
         'form': form,
+        'cancel_url_name': 'admin_staff' if request.resolver_match and request.resolver_match.url_name == 'admin_staff_new' else 'teacher_dashboard',
     })
 
 
@@ -482,6 +615,391 @@ def logout_view(request):
 @admin_required
 def admin_dashboard(request):
     return render(request, 'grades/admin_dashboard.html', _admin_dashboard_context())
+
+
+@login_required
+@admin_required
+def admin_classes(request):
+    current_academic_year, current_term = _current_period()
+    class_rows = []
+    class_names = _class_options()
+    for class_name in class_names:
+        students = Student.objects.filter(class_name=class_name)
+        grade_qs = Grade.objects.filter(
+            student__class_name=class_name,
+            academic_year=current_academic_year,
+            term=current_term,
+        )
+        behavior_count = BehavioralGrade.objects.filter(
+            student__class_name=class_name,
+            academic_year=current_academic_year,
+            term=current_term,
+        ).count()
+        class_teacher = Profile.objects.filter(
+            role=Profile.ROLE_CLASS_TEACHER,
+            assigned_class=class_name,
+        ).select_related('user').first()
+        class_rows.append({
+            'name': class_name,
+            'student_count': students.count(),
+            'grade_count': grade_qs.count(),
+            'average': grade_qs.aggregate(average=Avg('marks'))['average'],
+            'behavior_count': behavior_count,
+            'teacher': class_teacher.user if class_teacher else None,
+            'next_class': CLASS_PROGRESSION.get(class_name),
+        })
+
+    return render(request, 'grades/admin_classes.html', {
+        'class_rows': class_rows,
+        'current_academic_year': current_academic_year,
+        'current_term_display': _term_display(current_term),
+    })
+
+
+@login_required
+@admin_required
+def admin_class_detail(request, class_name):
+    current_academic_year, current_term = _current_period()
+    students = Student.objects.filter(class_name=class_name).order_by('last_name', 'first_name')
+    grade_qs = Grade.objects.filter(
+        student__class_name=class_name,
+        academic_year=current_academic_year,
+        term=current_term,
+    )
+    subject_averages = (
+        grade_qs.values('subject__name', 'subject__code')
+        .annotate(average=Avg('marks'), entries=Count('id'))
+        .order_by('subject__name')
+    )
+    teacher_profile = Profile.objects.filter(
+        role=Profile.ROLE_CLASS_TEACHER,
+        assigned_class=class_name,
+    ).select_related('user').first()
+
+    return render(request, 'grades/admin_class_detail.html', {
+        'class_name': class_name,
+        'students': students,
+        'student_count': students.count(),
+        'teacher': teacher_profile.user if teacher_profile else None,
+        'average': grade_qs.aggregate(average=Avg('marks'))['average'],
+        'grade_count': grade_qs.count(),
+        'behavior_count': BehavioralGrade.objects.filter(
+            student__class_name=class_name,
+            academic_year=current_academic_year,
+            term=current_term,
+        ).count(),
+        'subject_averages': subject_averages,
+        'next_class': CLASS_PROGRESSION.get(class_name),
+        'current_academic_year': current_academic_year,
+        'current_term': current_term,
+        'current_term_display': _term_display(current_term),
+    })
+
+
+@login_required
+@admin_required
+def admin_subjects(request):
+    current_academic_year, current_term = _current_period()
+    subjects = (
+        Subject.objects.annotate(
+            student_count=Count('students', distinct=True),
+            current_grade_count=Count(
+                'grades',
+                filter=Q(grades__academic_year=current_academic_year, grades__term=current_term),
+                distinct=True,
+            ),
+            current_average=Avg(
+                'grades__marks',
+                filter=Q(grades__academic_year=current_academic_year, grades__term=current_term),
+            ),
+        )
+        .order_by('name', 'code')
+    )
+
+    return render(request, 'grades/admin_subjects.html', {
+        'subjects': subjects,
+        'current_academic_year': current_academic_year,
+        'current_term_display': _term_display(current_term),
+    })
+
+
+@login_required
+@admin_required
+def admin_subject_detail(request, subject_id):
+    current_academic_year, current_term = _current_period()
+    subject = get_object_or_404(Subject, pk=subject_id)
+    grades = Grade.objects.filter(
+        subject=subject,
+        academic_year=current_academic_year,
+        term=current_term,
+    ).select_related('student').order_by('student__class_name', 'student__last_name')
+    students = Student.objects.filter(subjects=subject).order_by('class_name', 'last_name', 'first_name')
+    class_rows = (
+        grades.values('student__class_name')
+        .annotate(average=Avg('marks'), entries=Count('id'))
+        .order_by('student__class_name')
+    )
+
+    return render(request, 'grades/admin_subject_detail.html', {
+        'subject': subject,
+        'students': students,
+        'grades': grades,
+        'class_rows': class_rows,
+        'student_count': students.count(),
+        'grade_count': grades.count(),
+        'average': grades.aggregate(average=Avg('marks'))['average'],
+        'current_academic_year': current_academic_year,
+        'current_term': current_term,
+        'current_term_display': _term_display(current_term),
+    })
+
+
+@login_required
+@admin_required
+def admin_students(request):
+    selected_class = request.GET.get('class') or ''
+    search = (request.GET.get('q') or '').strip()
+    sort = request.GET.get('sort') or 'name'
+    students = Student.objects.all()
+    class_options = _class_options()
+    if selected_class and selected_class in class_options:
+        students = students.filter(class_name=selected_class)
+    elif selected_class:
+        selected_class = ''
+    if search:
+        students = students.filter(
+            Q(first_name__icontains=search)
+            | Q(other_names__icontains=search)
+            | Q(last_name__icontains=search)
+            | Q(student_id__icontains=search)
+        )
+    ordering = {
+        'name': ['last_name', 'first_name', 'student_id'],
+        'class': ['class_name', 'last_name', 'first_name'],
+        'student_id': ['student_id', 'last_name', 'first_name'],
+        'registered_newest': ['-enrollment_date', 'last_name', 'first_name'],
+        'registered_oldest': ['enrollment_date', 'last_name', 'first_name'],
+    }.get(sort, ['last_name', 'first_name', 'student_id'])
+
+    return render(request, 'grades/admin_students.html', {
+        'students': students.order_by(*ordering),
+        'class_options': class_options,
+        'selected_class': selected_class,
+        'search': search,
+        'sort': sort,
+        'sort_options': [
+            {'value': 'name', 'label': 'Name A-Z'},
+            {'value': 'class', 'label': 'Class'},
+            {'value': 'student_id', 'label': 'Student ID'},
+            {'value': 'registered_newest', 'label': 'Newest Registered'},
+            {'value': 'registered_oldest', 'label': 'Oldest Registered'},
+        ],
+    })
+
+
+@login_required
+@admin_required
+def admin_student_detail(request, student_id):
+    student = get_object_or_404(Student, pk=student_id)
+    selected_academic_year, selected_term, year_options, term_options = _student_result_period(
+        student,
+        request.GET.get('academic_year'),
+        request.GET.get('term'),
+    )
+    grades = Grade.objects.filter(
+        student=student,
+        academic_year=selected_academic_year,
+        term=selected_term,
+    ).select_related('subject').order_by('subject__name')
+    behavior = BehavioralGrade.objects.filter(
+        student=student,
+        academic_year=selected_academic_year,
+        term=selected_term,
+    ).first()
+    promotion_requests = [
+        request_item
+        for request_item in ClassPromotionRequest.objects.all()[:50]
+        if student.pk in (request_item.student_pks or [])
+    ][:10]
+
+    return render(request, 'grades/admin_student_detail.html', {
+        'student': student,
+        'grades': grades,
+        'behavior': behavior,
+        'average': grades.aggregate(average=Avg('marks'))['average'],
+        'selected_academic_year': selected_academic_year,
+        'selected_term': selected_term,
+        'selected_term_display': _term_display(selected_term),
+        'academic_year_options': year_options,
+        'term_options': term_options,
+        'promotion_requests': promotion_requests,
+    })
+
+
+@login_required
+@admin_required
+def admin_staff(request):
+    profiles = (
+        Profile.objects.filter(
+            Q(role__in=[Profile.ROLE_ADMIN, Profile.ROLE_CLASS_TEACHER, Profile.ROLE_SUBJECT_TEACHER])
+            | Q(user__is_staff=True)
+            | Q(user__is_superuser=True)
+        )
+        .select_related('user')
+        .prefetch_related('assigned_subjects')
+        .order_by('role', 'user__last_name', 'user__first_name', 'user__username')
+    )
+    return render(request, 'grades/admin_staff.html', {
+        'profiles': profiles,
+        'total_staff': profiles.count(),
+        'active_staff': profiles.filter(user__is_active=True).count(),
+        'class_teacher_count': profiles.filter(role=Profile.ROLE_CLASS_TEACHER).count(),
+        'subject_teacher_count': profiles.filter(role=Profile.ROLE_SUBJECT_TEACHER).count(),
+    })
+
+
+@login_required
+@admin_required
+def admin_staff_detail(request, staff_id):
+    profile = get_object_or_404(
+        Profile.objects.filter(
+            Q(role__in=[Profile.ROLE_ADMIN, Profile.ROLE_CLASS_TEACHER, Profile.ROLE_SUBJECT_TEACHER])
+            | Q(user__is_staff=True)
+            | Q(user__is_superuser=True)
+        ).select_related('user').prefetch_related('assigned_subjects'),
+        pk=staff_id,
+    )
+    assigned_class_count = 1 if profile.assigned_class else 0
+    return render(request, 'grades/admin_staff_detail.html', {
+        'staff_profile': profile,
+        'assigned_class_count': assigned_class_count,
+    })
+
+
+@login_required
+@admin_required
+def admin_promotion(request):
+    current_academic_year, current_term = _current_period()
+    pending_requests = ClassPromotionRequest.objects.filter(
+        status=ClassPromotionRequest.STATUS_PENDING,
+    ).select_related('requested_by')
+    promotion_rows = []
+    for from_class, to_class in CLASS_PROGRESSION.items():
+        student_count = Student.objects.filter(class_name=from_class).count()
+        if not student_count:
+            continue
+        pending = next((item for item in pending_requests if item.from_class == from_class), None)
+        promotion_rows.append({
+            'from_class': from_class,
+            'to_class': to_class,
+            'student_count': student_count,
+            'pending_request': pending,
+            'status': 'Pending' if pending else ('Ready' if current_term == 'third_term' else 'Open'),
+        })
+
+    return render(request, 'grades/admin_promotion.html', {
+        'promotion_rows': promotion_rows,
+        'pending_requests': pending_requests,
+        'current_academic_year': current_academic_year,
+        'current_term_display': _term_display(current_term),
+    })
+
+
+@login_required
+@admin_required
+def admin_promotion_class(request, class_name):
+    to_class = CLASS_PROGRESSION.get(class_name)
+    if not to_class:
+        messages.error(request, 'The selected class does not have a configured next class.')
+        return redirect('admin_promotion')
+
+    students = Student.objects.filter(class_name=class_name).order_by('last_name', 'first_name')
+    pending_request = ClassPromotionRequest.objects.filter(
+        from_class=class_name,
+        status=ClassPromotionRequest.STATUS_PENDING,
+    ).select_related('requested_by').first()
+    selected_pks = set(pending_request.student_pks if pending_request else students.values_list('pk', flat=True))
+
+    return render(request, 'grades/admin_promotion_class.html', {
+        'class_name': class_name,
+        'to_class': to_class,
+        'students': students,
+        'pending_request': pending_request,
+        'selected_pks': selected_pks,
+    })
+
+
+@login_required
+@admin_required
+def admin_results(request):
+    current_academic_year, current_term = _current_period()
+    publications = ResultPublication.objects.filter(
+        academic_year=current_academic_year,
+        term=current_term,
+    )
+    grade_count = Grade.objects.filter(academic_year=current_academic_year, term=current_term).count()
+    student_count = Student.objects.count()
+    approved_count = publications.filter(is_results_approved=True).count()
+    released_count = publications.filter(is_fee_cleared=True, is_results_approved=True).count()
+
+    class_rows = []
+    for class_name in _class_options():
+        class_students = Student.objects.filter(class_name=class_name)
+        class_publications = publications.filter(student__class_name=class_name)
+        class_rows.append({
+            'name': class_name,
+            'student_count': class_students.count(),
+            'grade_count': Grade.objects.filter(
+                student__class_name=class_name,
+                academic_year=current_academic_year,
+                term=current_term,
+            ).count(),
+            'approved_count': class_publications.filter(is_results_approved=True).count(),
+            'released_count': class_publications.filter(is_fee_cleared=True, is_results_approved=True).count(),
+        })
+
+    return render(request, 'grades/admin_results.html', {
+        'current_academic_year': current_academic_year,
+        'current_term': current_term,
+        'current_term_display': _term_display(current_term),
+        'student_count': student_count,
+        'grade_count': grade_count,
+        'approved_count': approved_count,
+        'released_count': released_count,
+        'locked_count': max(student_count - released_count, 0),
+        'class_rows': class_rows,
+    })
+
+
+@login_required
+@admin_required
+def admin_settings(request):
+    term_setting = TermSetting.objects.order_by('-updated_at').first()
+    return render(request, 'grades/admin_settings.html', {
+        'term_setting': term_setting,
+    })
+
+
+@login_required
+@admin_required
+def manage_announcements(request):
+    if request.method == 'POST':
+        form = AnnouncementForm(request.POST)
+        if form.is_valid():
+            announcement = form.save(commit=False)
+            announcement.created_by = request.user
+            announcement.save()
+            form.save_m2m()
+            messages.success(request, 'Announcement published successfully.')
+            return redirect('manage_announcements')
+    else:
+        form = AnnouncementForm()
+
+    announcements = Announcement.objects.select_related('created_by').prefetch_related('target_users')[:30]
+    return render(request, 'grades/manage_announcements.html', {
+        'form': form,
+        'announcements': announcements,
+    })
 
 
 @login_required
@@ -545,6 +1063,7 @@ def teacher_dashboard(request):
         'subject_rosters': subject_rosters,
         'can_request_promotion': profile.role == Profile.ROLE_CLASS_TEACHER or _user_can_approve_promotions(request.user, profile),
         'can_manage_result_publications': _user_can_approve_promotions(request.user, profile),
+        'announcements': _visible_announcements_for_user(request.user),
     })
 
 
@@ -756,6 +1275,83 @@ def staff_results(request):
         'student_count': len(rows),
         'profile': profile,
         'query_string': urlencode(query),
+    })
+
+
+@login_required
+@class_teacher_or_admin_required
+def session_summary_entry(request, student_pk):
+    current_academic_year, _current_term = _current_period()
+    selected_academic_year = request.GET.get('academic_year') or request.POST.get('academic_year') or current_academic_year
+    try:
+        validate_academic_year(selected_academic_year)
+    except ValidationError:
+        selected_academic_year = current_academic_year
+
+    student = get_object_or_404(_staff_student_queryset(request.user), pk=student_pk)
+    term_labels = dict(TERM_CHOICES)
+    rows = _session_entry_rows(student, selected_academic_year)
+
+    if request.method == 'POST':
+        created_count = 0
+        errors = []
+        valid_input_names = {
+            term_data['input_name']: (row['subject'], term, term_data['subject'])
+            for row in rows
+            for term, term_data in row['terms'].items()
+            if term_data['input_name']
+        }
+
+        with transaction.atomic():
+            for field_name, raw_value in request.POST.items():
+                if field_name not in valid_input_names:
+                    continue
+                raw_value = (raw_value or '').strip()
+                if raw_value == '':
+                    continue
+                subject_label, term, subject = valid_input_names[field_name]
+                try:
+                    total = float(raw_value)
+                except ValueError:
+                    errors.append(f'{subject_label} {term_labels.get(term, term)} must be a number.')
+                    continue
+                if total < 0 or total > 100:
+                    errors.append(f'{subject_label} {term_labels.get(term, term)} must be between 0 and 100.')
+                    continue
+
+                _grade, created = Grade.objects.get_or_create(
+                    student=student,
+                    subject=subject,
+                    academic_year=selected_academic_year,
+                    term=term,
+                    defaults={
+                        'homework': 0,
+                        'class_work': 0,
+                        'project': 0,
+                        'first_test': 0,
+                        'midterm_test': 0,
+                        'exam': total,
+                        'remarks': 'Total entered from session summary for a missing term result.',
+                    },
+                )
+                if created:
+                    created_count += 1
+
+        for error in errors:
+            messages.error(request, error)
+        if created_count:
+            messages.success(request, f'Added {created_count} missing term total(s) to the session summary.')
+        elif not errors:
+            messages.info(request, 'No missing term totals were entered.')
+
+        return redirect(f"{reverse('session_summary_entry', args=[student.pk])}?academic_year={selected_academic_year}")
+
+    return render(request, 'grades/session_summary_entry.html', {
+        'student': student,
+        'rows': rows,
+        'selected_academic_year': selected_academic_year,
+        'term_labels': term_labels,
+        'academic_terms': ['first_term', 'second_term', 'third_term'],
     })
 
 
@@ -1468,6 +2064,7 @@ def student_dashboard(request):
     student = None
     grades = []
     behavioral_grades = []
+    session_summary = None
     result_access_allowed = False
     publication = None
     selected_academic_year = request.GET.get('academic_year')
@@ -1484,16 +2081,19 @@ def student_dashboard(request):
         publication = _result_publication_for(student, selected_academic_year, selected_term)
         result_access_allowed = _result_access_allowed(student, selected_academic_year, selected_term)
         if result_access_allowed:
-            grades = Grade.objects.filter(
-                student=student,
-                academic_year=selected_academic_year,
-                term=selected_term,
-            ).select_related('subject').order_by('subject__name')
-            behavioral_grades = BehavioralGrade.objects.filter(
-                student=student,
-                academic_year=selected_academic_year,
-                term=selected_term,
-            ).order_by('-term')
+            if selected_term == 'session':
+                session_summary = _session_summary_for_student(student, selected_academic_year)
+            else:
+                grades = Grade.objects.filter(
+                    student=student,
+                    academic_year=selected_academic_year,
+                    term=selected_term,
+                ).select_related('subject').order_by('subject__name')
+                behavioral_grades = BehavioralGrade.objects.filter(
+                    student=student,
+                    academic_year=selected_academic_year,
+                    term=selected_term,
+                ).order_by('-term')
         else:
             messages.info(
                 request,
@@ -1506,6 +2106,7 @@ def student_dashboard(request):
         'student': student,
         'grades': grades,
         'behavioral_grades': behavioral_grades,
+        'session_summary': session_summary,
         'selected_academic_year': selected_academic_year,
         'selected_term': selected_term,
         'selected_term_display': _term_display(selected_term) if selected_term else '',
@@ -1513,6 +2114,7 @@ def student_dashboard(request):
         'term_options': term_options,
         'result_access_allowed': result_access_allowed,
         'publication': publication,
+        'announcements': _visible_announcements_for_user(request.user),
     })
 
 
@@ -1556,6 +2158,23 @@ def _letter_color(letter):
         'E': colors.HexColor('#a00000'),
         'F': colors.HexColor('#6b0000'),
     }.get(str(letter).upper(), _DARK)
+
+def _wrap_text(text, font_name, font_size, max_width):
+    """Break text into lines that each fit within max_width."""
+    words = (text or '').split()
+    lines = []
+    current = ''
+    for word in words:
+        candidate = f'{current} {word}'.strip()
+        if stringWidth(candidate, font_name, font_size) <= max_width:
+            current = candidate
+        else:
+            if current:
+                lines.append(current)
+            current = word
+    if current:
+        lines.append(current)
+    return lines or ['']
 
 
 def _average_letter_grade(average_score):
@@ -1942,8 +2561,18 @@ def build_report_card(
             cv.setFillColor(colors.HexColor('#888888'))
             cv.drawRightString(right_col_x + right_col_w - 3 * mm, row_y, score_range)
 
+        line_height = 3.3 * mm
+        max_text_width = right_col_w - 6 * mm
+
+        teacher_text = (teacher_comment or '').strip()
+        head_text = (head_comment or '').strip()
+        teacher_lines = _wrap_text(teacher_text, 'Helvetica', 7.5, max_text_width) if teacher_text else ['_' * 36]
+        head_lines = _wrap_text(head_text, 'Helvetica', 7.5, max_text_width) if head_text else ['_' * 36]
+
+        teacher_block_h = 10.5 * mm + len(teacher_lines) * line_height
+        head_block_h = 10.5 * mm + len(head_lines) * line_height
         comment_top = y - key_h - 3 * mm
-        comment_h = max(behavior_height - key_h - 3 * mm, 22 * mm)
+        comment_h = max(behavior_height - key_h - 3 * mm, teacher_block_h + head_block_h + 4 * mm, 22 * mm)
         _rounded_rect(cv, right_col_x, comment_top - comment_h, right_col_w, comment_h, 3, fill=_WHITE, stroke=_GREY)
 
         cv.setFont('Helvetica-Bold', 7.5)
@@ -1951,16 +2580,34 @@ def build_report_card(
         cv.drawString(right_col_x + 3 * mm, comment_top - 5 * mm, "CLASS TEACHER'S COMMENT")
         cv.setFont('Helvetica', 7.5)
         cv.setFillColor(_DARK)
-        cv.drawString(right_col_x + 3 * mm, comment_top - 10.5 * mm, (teacher_comment or '').strip() or ('_' * 36))
+        for index, line in enumerate(teacher_lines):
+            cv.drawString(right_col_x + 3 * mm, comment_top - 10.5 * mm - index * line_height, line)
 
+        head_label_y = comment_top - 10.5 * mm - len(teacher_lines) * line_height - 4 * mm
         cv.setFont('Helvetica-Bold', 7.5)
         cv.setFillColor(_RED)
-        cv.drawString(right_col_x + 3 * mm, comment_top - 17 * mm, "HEAD TEACHER'S COMMENT")
+        cv.drawString(right_col_x + 3 * mm, head_label_y, "HEAD TEACHER'S COMMENT")
         cv.setFont('Helvetica', 7.5)
         cv.setFillColor(_DARK)
-        cv.drawString(right_col_x + 3 * mm, comment_top - 22.5 * mm, (head_comment or '').strip() or ('_' * 36))
+        for index, line in enumerate(head_lines):
+            cv.drawString(right_col_x + 3 * mm, head_label_y - 5.5 * mm - index * line_height, line)
 
         y -= max(behavior_height, key_h + comment_h + 3 * mm) + 5 * mm
+
+        cv.setStrokeColor(_GREY)
+        cv.setLineWidth(0.5)
+        cv.line(margin, y, margin + content_width, y)
+        y -= 4 * mm
+        cv.setFont('Helvetica', 7)
+        cv.setFillColor(colors.HexColor('#888888'))
+        cv.drawCentredString(
+            width / 2,
+            y,
+            'Official use requires the school stamp and authorised signature. This report is computer-generated for preview only.',
+        )
+        return y
+
+    return _render_single_page_pdf(_draw)
 
         cv.setStrokeColor(_GREY)
         cv.setLineWidth(0.5)
@@ -2137,7 +2784,6 @@ def build_session_summary_report(*, student, academic_year):
         return y
 
     return _render_single_page_pdf(_draw)
-
 
 @login_required
 def report_card_pdf(request):

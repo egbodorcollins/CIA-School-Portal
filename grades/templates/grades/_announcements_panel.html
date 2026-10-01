@@ -1,0 +1,21 @@
+{% if announcements %}
+<section class="announcement-panel">
+    <div class="portal-panel-header">
+        <h3>Announcements</h3>
+        {% if profile.role == 'admin' or user.is_superuser or user.is_staff %}
+            <a href="{% url 'manage_announcements' %}">Manage</a>
+        {% endif %}
+    </div>
+    <div class="announcement-list">
+        {% for announcement in announcements %}
+            <article class="announcement-item">
+                <div>
+                    <strong>{{ announcement.title }}</strong>
+                    <span class="table-muted">{{ announcement.created_at|date:'M j, Y' }}</span>
+                </div>
+                <p>{{ announcement.body }}</p>
+            </article>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}

@@ -8,7 +8,7 @@
         <h2>Administrative workspace</h2>
         <p>Manage students, staff, promotions, and result releases from one polished workspace.</p>
     </div>
-    <a class="button button-primary" href="{% url 'admin_dashboard' %}">Open portal dashboard</a>
+    <a class="button button-primary" href="{% url 'portal_admin_dashboard' %}">Open portal dashboard</a>
 </div>
 
 <div class="portal-grid portal-grid--secondary">
@@ -26,12 +26,12 @@
             <h3>Quick links</h3>
         </div>
         <div class="portal-list">
-            <a class="portal-card" href="{% url 'manage_students' %}#end-of-year-promotion">
+            <a class="portal-card" href="{% url 'admin_promotion' %}">
                 <span class="portal-card-label">Promotions</span>
                 <strong>Review pending approvals</strong>
                 <p>Open the promotion management tool and review requests waiting for action.</p>
             </a>
-            <a class="portal-card" href="{% url 'staff_results' %}">
+            <a class="portal-card" href="{% url 'admin_results' %}">
                 <span class="portal-card-label">Results</span>
                 <strong>View and print reports</strong>
                 <p>Access student results and session summaries without leaving the portal.</p>

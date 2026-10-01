@@ -1,0 +1,76 @@
+{% extends 'grades/base.html' %}
+{% load custom_filters %}
+{% block page_content %}
+<div class="dashboard-shell">
+    <div class="dashboard-card">
+        <div class="release-header">
+            <div>
+                <h2>Session Summary</h2>
+                <p class="helper-text">{{ student.full_name }} - {{ student.student_id }} - {{ selected_academic_year }}</p>
+            </div>
+            <a class="button button-secondary" href="{% url 'staff_results' %}?academic_year={{ selected_academic_year|urlencode }}&term=session">Back to Results</a>
+        </div>
+
+        <form method="get" class="release-filters">
+            <div class="field-row">
+                <label for="academic-year">Academic Year</label>
+                <input id="academic-year" type="text" name="academic_year" value="{{ selected_academic_year }}" placeholder="2025/2026">
+            </div>
+            <button type="submit" class="button button-secondary">Load</button>
+        </form>
+
+        <form method="post" novalidate>
+            {% csrf_token %}
+            <input type="hidden" name="academic_year" value="{{ selected_academic_year }}">
+            <div class="grades-table">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>First Term</th>
+                            <th>Second Term</th>
+                            <th>Third Term</th>
+                            <th>Average</th>
+                            <th>Grade</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for row in rows %}
+                            <tr>
+                                <td>{{ row.subject }}</td>
+                                {% for term in academic_terms %}
+                                    {% with term_data=row.terms|get_item:term %}
+                                        <td>
+                                            {% if term_data.value is not None %}
+                                                {{ term_data.value|floatformat:0 }}
+                                                <span class="table-muted">Locked</span>
+                                            {% elif term_data.subject %}
+                                                <input class="session-total-input" type="number" min="0" max="100" step="0.01" name="{{ term_data.input_name }}" aria-label="{{ row.subject }} {{ term_labels|get_item:term }} total">
+                                            {% else %}
+                                                <span class="table-muted">Subject missing</span>
+                                            {% endif %}
+                                        </td>
+                                    {% endwith %}
+                                {% endfor %}
+                                <td>
+                                    {% if row.average is not None %}
+                                        {{ row.average|floatformat:1 }}
+                                    {% else %}
+                                        <span class="table-muted">No scores</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ row.letter }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="6">No standard subjects are configured for this student's class.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <button type="submit" class="button button-primary">Save Missing Totals</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

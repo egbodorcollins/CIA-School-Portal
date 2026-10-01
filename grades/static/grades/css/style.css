@@ -769,6 +769,46 @@ textarea { resize: vertical; min-height: 80px; }
 
 .grades-table tr:hover td { background: var(--red-light); }
 
+.session-total-input {
+  width: 6.5rem;
+  max-width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.announcement-panel,
+.announcement-list {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.announcement-panel {
+  margin: var(--sp-5) 0;
+}
+
+.announcement-item {
+  padding: var(--sp-4);
+  border: 1px solid var(--border-light);
+  border-radius: var(--r-md);
+  background: var(--surface);
+}
+
+.announcement-item p {
+  margin: var(--sp-2) 0 0;
+}
+
+.announcement-pill {
+  display: inline-flex;
+  align-items: center;
+  margin: var(--sp-2) var(--sp-2) 0 0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
 /* Report card table */
 .report-card {
   background: var(--surface-2);

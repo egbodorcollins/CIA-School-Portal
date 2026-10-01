@@ -92,7 +92,9 @@
                                 <td>{{ row.grade_count }}</td>
                                 <td>
                                     <a class="button button-small" target="_blank" href="{% url 'staff_report_pdf' row.student.pk %}?academic_year={{ selected_academic_year|urlencode }}&term={{ selected_term|urlencode }}">Print Result</a>
-                                    {% if selected_term != 'session' %}
+                                    {% if selected_term == 'session' %}
+                                        <a class="button button-small button-secondary" href="{% url 'session_summary_entry' row.student.pk %}?academic_year={{ selected_academic_year|urlencode }}">Fill Missing Totals</a>
+                                    {% else %}
                                         <a class="button button-small button-secondary" target="_blank" href="{% url 'staff_report_pdf' row.student.pk %}?academic_year={{ selected_academic_year|urlencode }}&term=session">Session Summary</a>
                                     {% endif %}
                                 </td>

@@ -1,0 +1,55 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Promotion control center</p>
+        <h2>Promotion</h2>
+        <p>Review who is moving to the next class for {{ current_academic_year }} - {{ current_term_display }}.</p>
+    </div>
+    <a class="button button-secondary" href="{% url 'admin_students' %}">Student records</a>
+</div>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Classes Ready for Promotion</h3>
+    </div>
+    {% if promotion_rows %}
+        <div class="grades-table release-table">
+            <table>
+                <thead><tr><th>Class</th><th>Students</th><th>Proposed Class</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody>
+                    {% for row in promotion_rows %}
+                        <tr>
+                            <td><strong>{{ row.from_class }}</strong></td>
+                            <td>{{ row.student_count }}</td>
+                            <td>{{ row.to_class }}</td>
+                            <td>{{ row.status }}</td>
+                            <td><a class="button button-small" href="{% url 'admin_promotion_class' row.from_class %}">Review</a></td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="empty-state">No promotable classes currently have students.</p>
+    {% endif %}
+</section>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Pending Promotion Requests</h3>
+    </div>
+    {% if pending_requests %}
+        <ul class="portal-list">
+            {% for request_item in pending_requests %}
+                <li>
+                    <strong>{{ request_item.from_class }} to {{ request_item.to_class }}</strong>
+                    <span>{{ request_item.student_count }} student(s)</span>
+                </li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p class="empty-state">No promotion requests are waiting for approval.</p>
+    {% endif %}
+</section>
+{% endblock %}

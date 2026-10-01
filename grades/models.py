@@ -173,6 +173,46 @@ class ResultPublication(models.Model):
         return self.is_fee_cleared and self.is_results_approved
 
 
+class Announcement(models.Model):
+    AUDIENCE_EVERYONE = 'everyone'
+    AUDIENCE_STAFF = 'staff'
+    AUDIENCE_CLASS_TEACHERS = 'class_teachers'
+    AUDIENCE_SUBJECT_TEACHERS = 'subject_teachers'
+    AUDIENCE_STUDENTS = 'students'
+    AUDIENCE_CLASSES = 'classes'
+    AUDIENCE_INDIVIDUALS = 'individuals'
+
+    AUDIENCE_CHOICES = [
+        (AUDIENCE_EVERYONE, 'Everyone'),
+        (AUDIENCE_STAFF, 'All Staff'),
+        (AUDIENCE_CLASS_TEACHERS, 'Class Teachers'),
+        (AUDIENCE_SUBJECT_TEACHERS, 'Subject Teachers'),
+        (AUDIENCE_STUDENTS, 'Students'),
+        (AUDIENCE_CLASSES, 'Specific Classes'),
+        (AUDIENCE_INDIVIDUALS, 'Specific Individuals'),
+    ]
+
+    title = models.CharField(max_length=200)
+    body = models.TextField()
+    audience = models.CharField(max_length=30, choices=AUDIENCE_CHOICES, default=AUDIENCE_EVERYONE)
+    target_classes = models.JSONField(default=list, blank=True)
+    target_users = models.ManyToManyField(User, blank=True, related_name='targeted_announcements')
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True, related_name='created_announcements')
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['audience', 'is_active']),
+            models.Index(fields=['created_at']),
+        ]
+
+    def __str__(self):
+        return self.title
+
+
 class Grade(models.Model):
     """Model for storing student grades for each subject"""
     TERM_CHOICES = TERM_CHOICES

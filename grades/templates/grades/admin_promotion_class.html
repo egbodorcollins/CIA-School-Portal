@@ -1,0 +1,59 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Promotion review</p>
+        <h2>{{ class_name }} to {{ to_class }}</h2>
+        <p>Select students to promote, hold back students by leaving them unchecked, then submit for approval.</p>
+    </div>
+    <a class="button button-secondary" href="{% url 'admin_promotion' %}">Back to promotion</a>
+</div>
+
+{% if pending_request %}
+    <section class="portal-panel">
+        <div class="portal-panel-header">
+            <h3>Pending Request</h3>
+            <form method="post" action="{% url 'approve_class_promotion' pending_request.pk %}">
+                {% csrf_token %}
+                <button type="submit" class="button button-primary">Approve promotion</button>
+            </form>
+        </div>
+        <p>{{ pending_request.student_count }} student(s) selected by {{ pending_request.requested_by.get_full_name|default:pending_request.requested_by.username|default:'staff' }}.</p>
+    </section>
+{% endif %}
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Promotion Review</h3>
+    </div>
+    {% if students %}
+        <form method="post" action="{% url 'promote_class' %}">
+            {% csrf_token %}
+            <input type="hidden" name="from_class" value="{{ class_name }}">
+            <div class="grades-table release-table">
+                <table>
+                    <thead><tr><th></th><th>Student</th><th>Current Class</th><th>Proposed Class</th><th>Status</th></tr></thead>
+                    <tbody>
+                        {% for student in students %}
+                            <tr>
+                                <td><input type="checkbox" name="student_pks" value="{{ student.pk }}" {% if student.pk in selected_pks %}checked{% endif %}></td>
+                                <td><strong>{{ student.full_name }}</strong><span class="table-muted">{{ student.student_id }}</span></td>
+                                <td>{{ class_name }}</td>
+                                <td>{{ to_class }}</td>
+                                <td>{% if student.pk in selected_pks %}Pending{% else %}Hold back{% endif %}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <label class="field-row" style="display:flex; align-items:center; gap:10px; margin: 16px 0;">
+                <input type="checkbox" name="confirm" value="yes" required style="width:auto;">
+                I have reviewed this class promotion list.
+            </label>
+            <button type="submit" class="button button-primary">Submit promotion request</button>
+        </form>
+    {% else %}
+        <p class="empty-state">No students are currently in this class.</p>
+    {% endif %}
+</section>
+{% endblock %}

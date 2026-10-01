@@ -1,0 +1,66 @@
+{% extends 'grades/base.html' %}
+{% block page_content %}
+<div class="portal-page-header">
+    <div>
+        <p class="portal-kicker">Student records</p>
+        <h2>Students</h2>
+        <p>Search, filter, sort, and open student profiles without mixing in promotion workflows.</p>
+    </div>
+    <a class="button button-primary" href="{% url 'register_student' %}">Register student</a>
+</div>
+
+<form method="get" class="release-filters">
+    <div class="field-row">
+        <label for="class">Class</label>
+        <select id="class" name="class">
+            <option value="">All classes</option>
+            {% for class_name in class_options %}
+                <option value="{{ class_name }}" {% if class_name == selected_class %}selected{% endif %}>{{ class_name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="field-row">
+        <label for="sort">Sort</label>
+        <select id="sort" name="sort">
+            {% for option in sort_options %}
+                <option value="{{ option.value }}" {% if option.value == sort %}selected{% endif %}>{{ option.label }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="field-row release-search">
+        <label for="q">Search</label>
+        <input id="q" type="search" name="q" value="{{ search }}" placeholder="Name or student ID">
+    </div>
+    <button type="submit" class="button button-secondary">Filter</button>
+</form>
+
+<section class="portal-panel">
+    <div class="portal-panel-header">
+        <h3>Student List</h3>
+        <a href="{% url 'staff_results' %}">Student results</a>
+    </div>
+    {% if students %}
+        <div class="grades-table release-table">
+            <table>
+                <thead><tr><th>Name</th><th>Class</th><th>Student ID</th><th>Registered</th><th>Actions</th></tr></thead>
+                <tbody>
+                    {% for student in students %}
+                        <tr>
+                            <td><strong>{{ student.full_name }}</strong></td>
+                            <td>{{ student.class_name|default:'No Class' }}</td>
+                            <td>{{ student.student_id }}</td>
+                            <td>{{ student.enrollment_date|date:'M j, Y' }}</td>
+                            <td>
+                                <a class="button button-small" href="{% url 'admin_student_detail' student.pk %}">Profile</a>
+                                <a class="button button-small button-secondary" target="_blank" href="{% url 'staff_report_pdf' student.pk %}">Print result</a>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="empty-state">No students match the selected filters.</p>
+    {% endif %}
+</section>
+{% endblock %}

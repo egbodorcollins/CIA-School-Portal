@@ -3,6 +3,7 @@
 <div class="dashboard-shell">
     <div class="dashboard-card">
         <h2>Student Dashboard</h2>
+        {% include 'grades/_announcements_panel.html' %}
         {% if student %}
             <div class="profile-block">
                 <p><strong>Name:</strong> {{ student.full_name }}</p>
@@ -35,7 +36,27 @@
             {% if result_access_allowed %}
             <div class="grades-table">
                 <h3>Academic Grades - {{ selected_academic_year }} {{ selected_term_display }}</h3>
-                {% if grades %}
+                {% if selected_term == 'session' and session_summary %}
+                    <table>
+                        <thead>
+                            <tr><th>Subject</th><th>First Term</th><th>Second Term</th><th>Third Term</th><th>Average</th><th>Letter Grade</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for row in session_summary.rows %}
+                                <tr>
+                                    <td>{{ row.subject }}</td>
+                                    <td>{% if row.first_term is not None %}{{ row.first_term|floatformat:0 }}{% else %}-{% endif %}</td>
+                                    <td>{% if row.second_term is not None %}{{ row.second_term|floatformat:0 }}{% else %}-{% endif %}</td>
+                                    <td>{% if row.third_term is not None %}{{ row.third_term|floatformat:0 }}{% else %}-{% endif %}</td>
+                                    <td>{% if row.average is not None %}{{ row.average|floatformat:1 }}{% else %}-{% endif %}</td>
+                                    <td>{{ row.letter }}</td>
+                                </tr>
+                            {% empty %}
+                                <tr><td colspan="6">No academic grades are available yet.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                {% elif grades %}
                     <table>
                         <thead>
                             <tr><th>Subject</th><th>Marks</th><th>Letter Grade</th></tr>
@@ -54,6 +75,7 @@
                     <p class="empty-state">No academic grades are available yet.</p>
                 {% endif %}
             </div>
+            {% if selected_term != 'session' %}
             <div class="behavioral-report">
                 <h3>Behavioral Report Card - {{ selected_academic_year }} {{ selected_term_display }}</h3>
                 {% if behavioral_grades %}
@@ -83,6 +105,7 @@
                     <p class="empty-state">No behavioral assessments have been recorded yet.</p>
                 {% endif %}
             </div>
+            {% endif %}
             {% endif %}
         {% else %}
             <p class="empty-state">We were not able to find a student profile for this account. Please contact the school administrator.</p>
