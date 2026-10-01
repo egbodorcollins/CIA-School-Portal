@@ -46,7 +46,7 @@
                     {% for row in class_rows %}
                         <tr>
                             <td><strong>{{ row.name }}</strong></td>
-                            <td>{{ row.teacher.get_full_name|default:row.teacher.username|default:'Unassigned' }}</td>
+                            <td>{{ row.teacher_name }}</td>
                             <td>{{ row.student_count }}</td>
                             <td>{{ row.grade_count }}</td>
                             <td>{% if row.average is not None %}{{ row.average|floatformat:1 }}{% else %}<span class="table-muted">No scores</span>{% endif %}</td>

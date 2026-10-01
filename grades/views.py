@@ -639,13 +639,18 @@ def admin_classes(request):
             role=Profile.ROLE_CLASS_TEACHER,
             assigned_class=class_name,
         ).select_related('user').first()
+        teacher_user = class_teacher.user if class_teacher else None
+        teacher_name = teacher_user.get_full_name() if teacher_user and teacher_user.get_full_name() else (
+            teacher_user.username if teacher_user else 'Unassigned'
+        )
         class_rows.append({
             'name': class_name,
             'student_count': students.count(),
             'grade_count': grade_qs.count(),
             'average': grade_qs.aggregate(average=Avg('marks'))['average'],
             'behavior_count': behavior_count,
-            'teacher': class_teacher.user if class_teacher else None,
+            'teacher': teacher_user,
+            'teacher_name': teacher_name,
             'next_class': CLASS_PROGRESSION.get(class_name),
         })
 
