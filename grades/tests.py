@@ -1075,8 +1075,8 @@ class PromoteClassTests(TestCase):
  
         TermSetting.objects.create(current_term='first_term')
         self.old_subject = Subject.objects.create(code='ENG B51', name='English Studies')
-        self.new_subject = Subject.objects.create(code='ENG B61', name='English Studies')
-        self.second_new_subject = Subject.objects.create(code='MAT B61', name='Mathematics')
+        self.new_subject = Subject.objects.create(code='ENG J11', name='English Language')
+        self.second_new_subject = Subject.objects.create(code='MAT J11', name='Mathematics')
  
         self.student = Student.objects.create(
             student_id='CIA/B52026/0001',
@@ -1146,7 +1146,7 @@ class PromoteClassTests(TestCase):
         self.assertEqual(self.student.class_name, 'Basic 5')
         request = ClassPromotionRequest.objects.get()
         self.assertEqual(request.from_class, 'Basic 5')
-        self.assertEqual(request.to_class, 'Basic 6')
+        self.assertEqual(request.to_class, 'JSS 1')
         self.assertEqual(request.status, ClassPromotionRequest.STATUS_PENDING)
         self.assertEqual(request.student_count, 1)
         self.assertIn(self.student.pk, request.student_pks)
@@ -1168,7 +1168,7 @@ class PromoteClassTests(TestCase):
         """Only student1 was selected — student2 must stay in Basic 5."""
         promotion_request = ClassPromotionRequest.objects.create(
             from_class='Basic 5',
-            to_class='Basic 6',
+            to_class='JSS 1',
             requested_by=self.teacher_user,
             student_count=1,
             student_pks=[self.student.pk],   # only student1
@@ -1184,17 +1184,17 @@ class PromoteClassTests(TestCase):
         promotion_request.refresh_from_db()
  
         # student1 promoted
-        self.assertEqual(self.student.class_name, 'Basic 6')
+        self.assertEqual(self.student.class_name, 'JSS 1')
         # student2 NOT promoted
         self.assertEqual(self.student2.class_name, 'Basic 5')
  
         self.assertEqual(promotion_request.status, ClassPromotionRequest.STATUS_APPROVED)
         self.assertEqual(promotion_request.approved_by, self.staff_user)
  
-        # student1 re-enrolled in Basic 6 subjects
+        # student1 re-enrolled in JSS 1 subjects
         self.assertCountEqual(
             self.student.subjects.values_list('code', flat=True),
-            ['ENG B61', 'MAT B61']
+            ['ENG J11', 'MAT J11']
         )
         # student2's subjects unchanged
         self.assertIn(self.old_subject, self.student2.subjects.all())
@@ -1216,7 +1216,7 @@ class PromoteClassTests(TestCase):
     def test_duplicate_pending_request_is_rejected(self):
         ClassPromotionRequest.objects.create(
             from_class='Basic 5',
-            to_class='Basic 6',
+            to_class='JSS 1',
             requested_by=self.teacher_user,
             student_count=1,
             student_pks=[self.student.pk],
