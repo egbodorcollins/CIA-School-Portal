@@ -391,3 +391,14 @@ class TeacherCreationForm(forms.Form):
             if subjects:
                 profile.assigned_subjects.set(subjects)
         return user
+
+
+class PasswordResetRequestForm(forms.Form):
+    username = forms.CharField(max_length=150, required=True, help_text='Enter the username of the account')
+    note = forms.CharField(required=False, widget=forms.Textarea(attrs={'rows':3}), help_text='Optional note or reason for the request')
+
+    def clean_username(self):
+        username = self.cleaned_data.get('username')
+        if not User.objects.filter(username__iexact=username).exists():
+            raise ValidationError('No account found with that username.')
+        return User.objects.get(username__iexact=username).username

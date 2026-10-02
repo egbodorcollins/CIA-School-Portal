@@ -693,6 +693,19 @@ textarea { resize: vertical; min-height: 80px; }
   margin-top: var(--sp-5);
 }
 
+/* Password reset form tweaks */
+.reset-request-form .field-row { margin-bottom: var(--sp-4); }
+.reset-request-form input[type="text"],
+.reset-request-form textarea { max-width: 100%; }
+.reset-request-form .form-actions {
+  display: flex;
+  gap: var(--sp-3);
+  align-items: center;
+  margin-top: var(--sp-2);
+}
+.reset-request-form .button-secondary { padding: 10px 16px; }
+.reset-request-form .field-error { margin-top: 6px; }
+
 /* ============================================================
    MESSAGES / ALERTS
    ============================================================ */

@@ -56,4 +56,8 @@ urlpatterns = [
     path('teacher/manage-students/delete/<path:student_id>/', views.delete_student, name='delete_student'),
     path('student/dashboard/', views.student_dashboard, name='student_dashboard'),
     path('student/report/pdf/', views.report_card_pdf, name='report_card_pdf'),
+    # Password reset requests
+    path('password/reset-request/', views.password_reset_request, name='password_reset_request'),
+    path('admin/password-reset-requests/', views.list_password_reset_requests, name='list_password_reset_requests'),
+    path('admin/password-reset-requests/<int:request_id>/approve/', views.approve_password_reset, name='approve_password_reset'),
 ]
