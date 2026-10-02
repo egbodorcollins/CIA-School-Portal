@@ -26,6 +26,7 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 
 from .models import (
     Student,
+    PasswordResetRequest,
     Grade,
     BehavioralGrade,
     TermSetting,
@@ -50,6 +51,7 @@ from .forms import (
     TeacherCreationForm,
     enroll_student_in_standard_subjects,
     get_class_code,
+    PasswordResetRequestForm,
 )
 from .subject_map import CLASS_NAME_BY_CODE, CLASS_PROGRESSION, STANDARD_SUBJECTS
 from django.forms import HiddenInput
@@ -416,6 +418,7 @@ def _admin_dashboard_context():
         .order_by('class_name'),
         'recent_activities': Activity.objects.select_related('actor', 'target_student', 'target_subject')[:10],
         'announcements': _admin_announcements(),
+        'pending_password_resets': PasswordResetRequest.objects.filter(status=PasswordResetRequest.STATUS_PENDING)[:6],
     }
 
 
@@ -800,6 +803,76 @@ def admin_students(request):
             {'value': 'registered_oldest', 'label': 'Oldest Registered'},
         ],
     })
+
+
+def password_reset_request(request):
+    """Public view where users (or admins) can request a password reset by username."""
+    if request.method == 'POST':
+        form = PasswordResetRequestForm(request.POST)
+        if form.is_valid():
+            username = form.cleaned_data['username']
+            note = form.cleaned_data.get('note') or ''
+            user = User.objects.filter(username__iexact=username).first()
+            req = PasswordResetRequest.objects.create(
+                username=user.username if user else username,
+                user=user,
+                requested_by=request.user if request.user.is_authenticated else None,
+                note=note,
+            )
+            messages.success(request, 'Password reset request submitted. An administrator will review it shortly.')
+            return redirect('home')
+    else:
+        form = PasswordResetRequestForm()
+
+    return render(request, 'grades/password_reset_request.html', {'form': form})
+
+
+@login_required
+@admin_required
+def list_password_reset_requests(request):
+    qs = PasswordResetRequest.objects.order_by('-created_at')
+    return render(request, 'grades/password_reset_requests_list.html', {'requests': qs})
+
+
+@login_required
+@admin_required
+def approve_password_reset(request, request_id):
+    pr = get_object_or_404(PasswordResetRequest, pk=request_id)
+    if pr.status != PasswordResetRequest.STATUS_PENDING:
+        messages.info(request, 'This request has already been reviewed.')
+        return redirect('list_password_reset_requests')
+
+    # Reset password to the default student password
+    target_user = pr.user
+    if not target_user:
+        messages.error(request, 'Target user account not found; cannot reset password.')
+        pr.status = PasswordResetRequest.STATUS_REJECTED
+        pr.reviewed_at = timezone.now()
+        pr.approved_by = request.user
+        pr.save()
+        return redirect('list_password_reset_requests')
+
+    try:
+        target_user.set_password(AUTO_STUDENT_PASSWORD)
+        target_user.save()
+        pr.status = PasswordResetRequest.STATUS_APPROVED
+        pr.approved_by = request.user
+        pr.reviewed_at = timezone.now()
+        pr.save()
+        Activity.objects.create(
+            actor=request.user,
+            action_type=Activity.ACTION_TEACHER_REGISTERED,
+            description=f'Password for {target_user.username} reset to default by {request.user.username}',
+        )
+        messages.success(request, f"Password for {target_user.username} has been reset to the default.")
+    except Exception as e:
+        messages.error(request, f'Failed to reset password: {e}')
+        pr.status = PasswordResetRequest.STATUS_REJECTED
+        pr.reviewed_at = timezone.now()
+        pr.approved_by = request.user
+        pr.save()
+
+    return redirect('list_password_reset_requests')
 
 
 @login_required
